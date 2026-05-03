@@ -1,0 +1,23 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Scenario {
+  id               String   @id @default(cuid())
+  sessionId      String
+  email            String?
+  payloadJson      String
+  summaryMarkdown  String
+  verdict          String
+  buildThreeYearTco Float
+  saasThreeYearTco  Float
+  createdAt        DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([createdAt])
+}

@@ -1,0 +1,14 @@
+node_modules
+.next
+.env
+.env*.local
+prisma/**/*.db
+prisma/**/*.db-journal
+
+# Local / IDE / tooling noise (do not publish)
+.cache
+.local
+.config
+conversation.md
+*.log
+.upm
