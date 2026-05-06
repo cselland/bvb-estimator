@@ -1,0 +1,41 @@
+{
+  // Harry (Analyst Agent) — replace database_id after: npx wrangler d1 create harry-market-data
+  // Create Vectorize index "harry-memory" in the dashboard (or wrangler vectorize create) before remote deploy.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "harry",
+  "main": "src/index.ts",
+  "vars": {
+    "CALCULATOR_BASE_URL": "http://127.0.0.1:3000"
+  },
+  "compatibility_date": "2026-05-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "HarryAgent",
+        "class_name": "HarryAgent"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["HarryAgent"]
+    }
+  ],
+  "vectorize": [
+    {
+      "binding": "HARRY_MEMORY",
+      "index_name": "harry-memory"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "MARKET_DB",
+      "database_name": "harry-market-data",
+      "database_id": "00000000-0000-4000-8000-000000000001",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

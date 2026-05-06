@@ -1,6 +1,8 @@
-# Build vs. Buy Calculator
+# Build vs. Buy
 
-A B2B SaaS strategic decision tool that helps companies decide whether to build a custom software solution or buy a vendor SaaS product.
+Monorepo-style workspace: B2B strategic build-vs-buy tooling (Next.js at repo root) plus the Harry analyst Worker in `harry/`.
+
+The Next.js app helps companies decide whether to build custom software or buy vendor SaaS.
 
 ## Stack
 
@@ -21,10 +23,11 @@ A B2B SaaS strategic decision tool that helps companies decide whether to build 
 ## Project Structure
 
 ```
+harry/               # Cloudflare Worker — Harry analyst agent (separate package.json)
 src/
   app/
     layout.tsx       # Root layout with metadata
-    page.tsx         # Main calculator page (client component)
+    page.tsx         # Main build-vs-buy page (client component)
     globals.css      # Tailwind base + custom slider styles
 package.json
 next.config.js

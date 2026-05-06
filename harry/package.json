@@ -1,0 +1,23 @@
+{
+  "name": "harry",
+  "description": "Harry — Cloudflare Analyst Agent (Worker). Calls the build-vs-buy Next app over HTTP as a tool.",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "cf-typegen": "wrangler types --include-runtime=false worker-configuration.d.ts"
+  },
+  "dependencies": {
+    "agents": "^0.12.3",
+    "hono": "^4.12.16",
+    "hono-agents": "^3.0.11"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260504.1",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.87.0"
+  }
+}

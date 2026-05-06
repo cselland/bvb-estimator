@@ -3,6 +3,14 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
   BarChart,
   Bar,
   XAxis,
@@ -13,9 +21,15 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { formatCurrency, formatMonths, formatSaasCost } from "@/lib/format";
-import { computeScenario, type ScenarioInputs } from "@/lib/tco";
+import {
+  MODEL_COST_COEFFICIENTS,
+  calculateEstimatedTokenSpend,
+  computeScenario,
+  type ModelToolName,
+  type ScenarioInputs,
+} from "@/lib/tco";
 
-interface SliderProps {
+interface RangeSliderProps {
   label: string;
   value: number;
   min: number;
@@ -28,7 +42,7 @@ interface SliderProps {
   onChange: (v: number) => void;
 }
 
-function Slider({ label, value, min, max, step, displayValue, minLabel, maxLabel, tooltip, onChange }: SliderProps) {
+function RangeSlider({ label, value, min, max, step, displayValue, minLabel, maxLabel, tooltip, onChange }: RangeSliderProps) {
   const defaultMinLabel = min === 1 ? "1" : formatSaasCost(min);
   const defaultMaxLabel = max <= 12 ? String(max) : formatSaasCost(max);
   return (
@@ -80,12 +94,18 @@ function Slider({ label, value, min, max, step, displayValue, minLabel, maxLabel
 }
 
 export default function Home() {
+  const modelOptions = Object.keys(MODEL_COST_COEFFICIENTS) as ModelToolName[];
   const [timeToGoLive, setTimeToGoLive] = useState(6);
   const [appLifespan, setAppLifespan] = useState(36);
-  const [annualSaasCost, setAnnualSaasCost] = useState(100_000);
+  const [annualSaasLicenseCost, setAnnualSaasLicenseCost] = useState(80_000);
+  const [annualSaasSupportCost, setAnnualSaasSupportCost] = useState(20_000);
+  const [annualCostIncreasePct, setAnnualCostIncreasePct] = useState(8);
   const [appCriticality, setAppCriticality] = useState(3);
   const [selfCodingAppetite, setSelfCodingAppetite] = useState(3);
   const [customizationImportance, setCustomizationImportance] = useState(3);
+  const [differentiationLevel, setDifferentiationLevel] = useState(3.0);
+  const [primaryTool, setPrimaryTool] = useState<ModelToolName>("Claude 4.7 Opus");
+  const [secondaryTool, setSecondaryTool] = useState<ModelToolName>("Gemini 3.1 Pro");
   const [saasImplementationCost, setSaasImplementationCost] = useState(25_000);
   const [buildEngineers, setBuildEngineers] = useState(2);
   const [buildTimeframeMonths, setBuildTimeframeMonths] = useState(6);
@@ -100,6 +120,13 @@ export default function Home() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   /** Recharts measures parent width; mounting after paint avoids an empty / broken chart. */
   const [chartReady, setChartReady] = useState(false);
+  const annualSaasCost = annualSaasLicenseCost + annualSaasSupportCost;
+
+  function getDifferentiationLabel(value: number) {
+    if (value <= 1.5) return "Pure Commodity/Standard CRUD";
+    if (value >= 4.5) return "Unique IP/Custom Intelligence";
+    return "High Business Logic";
+  }
 
   useEffect(() => {
     setSessionId(`SCN-${Math.random().toString(36).substring(2, 10).toUpperCase()}`);
@@ -113,9 +140,11 @@ export default function Home() {
     timeToGoLive,
     appLifespan,
     annualSaasCost,
+    annualCostIncreasePct,
     appCriticality,
     selfCodingAppetite,
     customizationImportance,
+    differentiationLevel,
     saasImplementationCost,
     buildEngineers,
     buildTimeframeMonths,
@@ -125,12 +154,23 @@ export default function Home() {
   };
 
   const {
+    horizonYears,
     annualSupportCost,
     buildThreeYearTco,
     saasThreeYearTco,
     verdict,
     chartData,
   } = computeScenario(inputs);
+  const cheaperOption = buildThreeYearTco <= saasThreeYearTco ? "Proprietary (Build)" : "Vendor (Buy)";
+  const savingsAmount = Math.abs(buildThreeYearTco - saasThreeYearTco);
+  const primaryCoefficient = MODEL_COST_COEFFICIENTS[primaryTool];
+  const tokenSpendEstimate = calculateEstimatedTokenSpend({
+    annualSaasCost,
+    differentiationLevel,
+    primaryModel: primaryTool,
+    secondaryModel: secondaryTool,
+    horizonYears,
+  });
 
   async function handleSaveReport(e: React.FormEvent) {
     e.preventDefault();
@@ -163,19 +203,21 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-df-canvas text-df-ink">
       <nav className="sticky top-0 z-50 w-full border-b border-white/10 bg-black backdrop-blur-md">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between gap-3">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-32 flex items-center justify-between gap-4">
           <a href="https://differentialfactor.com" className="flex items-center min-w-0 hover:opacity-90 transition-opacity">
             <img
               src="/images/df-logo-full.jpg"
               alt="Differential Factor"
               width={1024}
               height={340}
-              className="h-10 w-auto sm:h-11 md:h-12 max-w-[min(100%,calc(100vw-6.5rem))] sm:max-w-[480px] md:max-w-[520px] object-contain object-left"
+              className="h-[4.5rem] sm:h-[5.25rem] md:h-[6rem] w-auto max-w-[min(100%,calc(100vw-11rem))] sm:max-w-[840px] md:max-w-[1020px] object-contain object-left"
             />
           </a>
-          <span className="text-xs sm:text-sm font-medium text-[#d1d5db] tracking-wide whitespace-nowrap">
-            Build vs. Buy
-          </span>
+          <div className="text-right shrink-0">
+            <div className="text-sm sm:text-base font-bold tracking-tight text-white">
+              Build vs. Buy calculator
+            </div>
+          </div>
         </div>
       </nav>
 
@@ -197,190 +239,242 @@ export default function Home() {
           </p>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 relative z-10">
+        <div className="grid grid-cols-1 gap-8 relative z-10">
           <div className="bg-white p-6 md:p-8 shadow-sm border border-df-line border-l-4 border-l-df-mint">
             <h2 className="text-df-mint font-bold tracking-[0.3em] uppercase text-sm mb-8">
               Parameters
             </h2>
 
-            <Slider
-              label="Time to Go Live"
-              value={timeToGoLive}
-              min={1}
-              max={24}
-              step={1}
-              minLabel="1 mo"
-              maxLabel="2 yrs"
-              tooltip="How soon does this solution need to be live? If a contract is expiring or a deadline is pressing, a short window makes building harder and more expensive — adding a rush premium to the dev cost estimate."
-              displayValue={formatMonths(timeToGoLive)}
-              onChange={setTimeToGoLive}
-            />
-
-            <Slider
-              label="Expected App Lifespan"
-              value={appLifespan}
-              min={1}
-              max={60}
-              step={1}
-              minLabel="1 mo"
-              maxLabel="5 yrs"
-              tooltip="How long do you expect this solution to remain in active use? Longer lifespans make building more cost-efficient over time and also increase the total SaaS spend you're comparing against."
-              displayValue={formatMonths(appLifespan)}
-              onChange={setAppLifespan}
-            />
-
-            <Slider
-              label="Annual SaaS Cost"
-              value={annualSaasCost}
-              min={10_000}
-              max={500_000}
-              step={10_000}
-              tooltip="The total yearly spend on the vendor SaaS product — including licenses, seats, and platform fees. Higher SaaS costs make building in-house more attractive."
-              displayValue={formatSaasCost(annualSaasCost) + "/yr"}
-              onChange={setAnnualSaasCost}
-            />
-
-            <div className="mb-6">
-              <div className="flex justify-between items-center mb-2">
-                <div className="flex items-center gap-1.5">
-                  <label className="text-sm font-medium text-slate-700">
-                    SaaS Implementation Cost
-                  </label>
-                  <div className="relative group">
-                    <svg className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 cursor-pointer transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <div className="absolute left-0 bottom-full mb-2 w-56 z-10 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                      <div className="bg-white border border-df-line rounded-lg px-3 py-2 text-xs text-slate-600 shadow-xl leading-relaxed">
-                        One-time upfront cost to get the SaaS solution live — onboarding fees, data migration, professional services, and initial training. Added to Year 1 of the SaaS TCO.
-                      </div>
-                      <div className="w-2 h-2 bg-white border-r border-b border-df-line rotate-45 ml-1.5 -mt-1.5" />
-                    </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="border border-df-line rounded-xl p-5 bg-df-canvas/40">
+                <h2 className="text-df-mint font-black tracking-wide text-2xl mb-5">Buy</h2>
+                <RangeSlider
+                  label="Expected App Lifespan"
+                  value={appLifespan}
+                  min={12}
+                  max={60}
+                  step={12}
+                  minLabel="1 yr"
+                  maxLabel="5 yrs"
+                  tooltip="How long do you expect this solution to remain in active use? Longer lifespans increase total SaaS spend and can shift buy economics."
+                  displayValue={`${Math.round(appLifespan / 12)} yr${appLifespan === 12 ? "" : "s"}`}
+                  onChange={setAppLifespan}
+                />
+                <div className="mb-6">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-sm font-medium text-slate-700">Proposed Annual SaaS License ($)</label>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-base">$</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1000}
+                      value={annualSaasLicenseCost}
+                      onChange={(e) => setAnnualSaasLicenseCost(Math.max(0, Number(e.target.value)))}
+                      aria-label="Proposed annual SaaS license in dollars"
+                      className="w-full bg-df-field border border-df-line rounded-xl pl-9 pr-4 py-4 text-xl font-semibold text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                    />
                   </div>
                 </div>
-                <span className="text-xs text-slate-500">one-time</span>
-              </div>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
-                <input
-                  type="number"
-                  min={0}
-                  step={1000}
-                  value={saasImplementationCost}
-                  onChange={(e) => setSaasImplementationCost(Math.max(0, Number(e.target.value)))}
-                  aria-label="SaaS implementation cost in dollars"
-                  className="w-full bg-df-field border border-df-line rounded-lg pl-7 pr-4 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                <div className="mb-6">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-sm font-medium text-slate-700">Proposed Annual Support Cost ($)</label>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-base">$</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1000}
+                      value={annualSaasSupportCost}
+                      onChange={(e) => setAnnualSaasSupportCost(Math.max(0, Number(e.target.value)))}
+                      aria-label="Proposed annual support cost in dollars"
+                      className="w-full bg-df-field border border-df-line rounded-xl pl-9 pr-4 py-4 text-xl font-semibold text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Annual SaaS Cost Total: {formatCurrency(annualSaasCost)}
+                  </p>
+                </div>
+                <div className="mb-6">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-sm font-medium text-slate-700">Annual Cost Increase (%)</label>
+                    <span className="text-xs text-slate-500">compounded over lifespan</span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.5}
+                      value={annualCostIncreasePct}
+                      onChange={(e) => setAnnualCostIncreasePct(Math.max(0, Number(e.target.value)))}
+                      aria-label="Annual SaaS cost increase percentage"
+                      className="w-full bg-df-field border border-df-line rounded-lg pl-4 pr-10 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">%</span>
+                  </div>
+                </div>
+                <div className="mb-6">
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-sm font-medium text-slate-700">SaaS Implementation Cost</label>
+                    </div>
+                    <span className="text-xs text-slate-500">one-time</span>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1000}
+                      value={saasImplementationCost}
+                      onChange={(e) => setSaasImplementationCost(Math.max(0, Number(e.target.value)))}
+                      aria-label="SaaS implementation cost in dollars"
+                      className="w-full bg-df-field border border-df-line rounded-lg pl-7 pr-4 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                    />
+                  </div>
+                </div>
+                <RangeSlider
+                  label="Customization Importance"
+                  value={customizationImportance}
+                  min={1}
+                  max={5}
+                  step={1}
+                  tooltip="How much does this app need to be tailored to your specific business?"
+                  displayValue={`${customizationImportance} / 5`}
+                  onChange={setCustomizationImportance}
+                />
+                <RangeSlider
+                  label="Differentiation"
+                  value={differentiationLevel}
+                  min={1}
+                  max={5}
+                  step={0.1}
+                  minLabel="1.0"
+                  maxLabel="5.0"
+                  tooltip="How differentiating is this app to your business?"
+                  displayValue={`${differentiationLevel.toFixed(1)} - ${getDifferentiationLabel(differentiationLevel)}`}
+                  onChange={setDifferentiationLevel}
+                />
+                <RangeSlider
+                  label="App Criticality"
+                  value={appCriticality}
+                  min={1}
+                  max={5}
+                  step={1}
+                  tooltip="Higher criticality increases required quality and resilience."
+                  displayValue={`${appCriticality} / 5`}
+                  onChange={setAppCriticality}
                 />
               </div>
-            </div>
 
-            <Slider
-              label="Customization Importance"
-              value={customizationImportance}
-              min={1}
-              max={5}
-              step={1}
-              tooltip="How much does this app need to be tailored to your specific business? Low = standard out-of-the-box SaaS will do the job. High = SaaS requires costly professional services, custom integrations, or workarounds — raising its true cost."
-              displayValue={`${customizationImportance} / 5`}
-              onChange={setCustomizationImportance}
-            />
-
-            <Slider
-              label="App Criticality"
-              value={appCriticality}
-              min={1}
-              max={5}
-              step={1}
-              tooltip="How mission-critical is this application? Higher criticality means the build needs more robust architecture, testing, and redundancy — which raises the estimated build cost."
-              displayValue={`${appCriticality} / 5`}
-              onChange={setAppCriticality}
-            />
-
-            <Slider
-              label="Self-Coding Appetite"
-              value={selfCodingAppetite}
-              min={1}
-              max={5}
-              step={1}
-              tooltip="How eager and capable is your team to build and own this? Also called 'vibe coding appetite' — higher means faster delivery and lower dev cost through AI-assisted development. Low appetite signals risk of delays, poor ownership, and hidden costs."
-              displayValue={`${selfCodingAppetite} / 5`}
-              onChange={setSelfCodingAppetite}
-            />
-
-            <div className="border-t border-[#161b22]/10 my-6 pt-6">
-              <div className="text-df-iris font-bold tracking-[0.3em] uppercase text-sm mb-6">
-                Build Team &amp; Costs
-              </div>
-
-              <Slider
-                label="Engineers Needed to Build"
-                value={buildEngineers}
-                min={1}
-                max={20}
-                step={1}
-                minLabel="1"
-                maxLabel="20"
-                tooltip="How many engineers would be dedicated to building this solution? Combined with the build timeframe and their cost, this drives the core development spend estimate."
-                displayValue={`${buildEngineers} engineer${buildEngineers !== 1 ? "s" : ""}`}
-                onChange={setBuildEngineers}
-              />
-
-              <Slider
-                label="Build Timeframe"
-                value={buildTimeframeMonths}
-                min={1}
-                max={24}
-                step={1}
-                minLabel="1 mo"
-                maxLabel="2 yrs"
-                tooltip="How many months would it realistically take to build and ship this solution? Paired with engineer count and cost, this determines total development spend."
-                displayValue={formatMonths(buildTimeframeMonths)}
-                onChange={setBuildTimeframeMonths}
-              />
-
-              <div className="mb-6">
-                <div className="flex justify-between items-center mb-2">
-                  <div className="flex items-center gap-1.5">
-                    <label className="text-sm font-medium text-slate-700">
-                      Cost per Engineer / Year
-                    </label>
-                    <div className="relative group">
-                      <svg className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 cursor-pointer transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <div className="absolute left-0 bottom-full mb-2 w-56 z-10 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                        <div className="bg-white border border-df-line rounded-lg px-3 py-2 text-xs text-slate-600 shadow-xl leading-relaxed">
-                          Fully-loaded annual cost per engineer — salary, benefits, equity, tools, and overhead. Use your real burdened labor rate for accuracy.
-                        </div>
-                        <div className="w-2 h-2 bg-white border-r border-b border-df-line rotate-45 ml-1.5 -mt-1.5" />
+              <div className="border border-df-line rounded-xl p-5 bg-white">
+                <h2 className="text-df-iris font-black tracking-wide text-2xl mb-5">Build</h2>
+                <RangeSlider
+                  label="Time to Go Live"
+                  value={timeToGoLive}
+                  min={1}
+                  max={24}
+                  step={1}
+                  minLabel="1 mo"
+                  maxLabel="2 yrs"
+                  tooltip="Short delivery windows can add a rush premium to build cost."
+                  displayValue={formatMonths(timeToGoLive)}
+                  onChange={setTimeToGoLive}
+                />
+                <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-slate-700 block mb-2">Primary AI Tool</label>
+                    <Select value={primaryTool} onValueChange={(value) => setPrimaryTool(value as ModelToolName)}>
+                      <SelectTrigger aria-label="Primary AI tool">
+                        <SelectValue placeholder="Select primary model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {modelOptions.map((tool) => (
+                          <SelectItem key={tool} value={tool}>
+                            {tool}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {primaryTool.includes("Microsoft Copilot") && (
+                      <div className="mt-2 w-full rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700">
+                        Uses existing Azure/M365 Credits - High Compliance Tier.
                       </div>
-                    </div>
+                    )}
                   </div>
-                  <span className="text-xs text-slate-500">
-                    {formatCurrency(buildEngineers * costPerEngineerPerYear)}/yr total
-                  </span>
+                  <div>
+                    <label className="text-sm font-medium text-slate-700 block mb-2">Secondary AI Tool</label>
+                    <Select value={secondaryTool} onValueChange={(value) => setSecondaryTool(value as ModelToolName)}>
+                      <SelectTrigger aria-label="Secondary AI tool">
+                        <SelectValue placeholder="Select secondary model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {modelOptions.map((tool) => (
+                          <SelectItem key={tool} value={tool}>
+                            {tool}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
-                  <input
-                    type="number"
-                    min={0}
-                    step={5000}
-                    value={costPerEngineerPerYear}
-                    onChange={(e) => setCostPerEngineerPerYear(Math.max(0, Number(e.target.value)))}
-                    aria-label="Cost per engineer per year in dollars"
-                    className="w-full bg-df-field border border-df-line rounded-lg pl-7 pr-4 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
-                  />
+                <RangeSlider
+                  label="Self-Coding Appetite"
+                  value={selfCodingAppetite}
+                  min={1}
+                  max={5}
+                  step={1}
+                  tooltip="Higher appetite means faster AI-assisted build velocity."
+                  displayValue={`${selfCodingAppetite} / 5`}
+                  onChange={setSelfCodingAppetite}
+                />
+                <RangeSlider
+                  label="Engineers Needed to Build"
+                  value={buildEngineers}
+                  min={1}
+                  max={20}
+                  step={1}
+                  minLabel="1"
+                  maxLabel="20"
+                  tooltip="Dedicated engineering headcount for build delivery."
+                  displayValue={`${buildEngineers} engineer${buildEngineers !== 1 ? "s" : ""}`}
+                  onChange={setBuildEngineers}
+                />
+                <RangeSlider
+                  label="Build Timeframe"
+                  value={buildTimeframeMonths}
+                  min={1}
+                  max={24}
+                  step={1}
+                  minLabel="1 mo"
+                  maxLabel="2 yrs"
+                  tooltip="Planned implementation window for proprietary build."
+                  displayValue={formatMonths(buildTimeframeMonths)}
+                  onChange={setBuildTimeframeMonths}
+                />
+                <div className="mb-6">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-sm font-medium text-slate-700">Cost per Engineer / Year</label>
+                    <span className="text-xs text-slate-500">
+                      {formatCurrency(buildEngineers * costPerEngineerPerYear)}/yr total
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={5000}
+                      value={costPerEngineerPerYear}
+                      onChange={(e) => setCostPerEngineerPerYear(Math.max(0, Number(e.target.value)))}
+                      aria-label="Cost per engineer per year in dollars"
+                      className="w-full bg-df-field border border-df-line rounded-lg pl-7 pr-4 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                    />
+                  </div>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">Annual fully-loaded cost per engineer</p>
-              </div>
-
-              <div className="border-t border-[#161b22]/10 my-6 pt-6">
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-[0.2em] mb-5">
-                  Ongoing Support
-                </div>
-
-                <Slider
+                <RangeSlider
                   label="Support Reps Needed"
                   value={supportReps}
                   min={0}
@@ -388,33 +482,15 @@ export default function Home() {
                   step={1}
                   minLabel="0"
                   maxLabel="20"
-                  tooltip="Number of dedicated support or ops staff required to maintain the custom-built solution. Each rep adds their annual cost to the build's ongoing expense — often the biggest cost driver."
+                  tooltip="Dedicated support/ops staffing for the built solution."
                   displayValue={`${supportReps} rep${supportReps !== 1 ? "s" : ""}`}
                   onChange={setSupportReps}
                 />
-
                 <div className="mb-2">
                   <div className="flex justify-between items-center mb-2">
-                    <div className="flex items-center gap-1.5">
-                      <label className="text-sm font-medium text-slate-700">
-                        Cost per Rep / Year
-                      </label>
-                      <div className="relative group">
-                        <svg className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 cursor-pointer transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <div className="absolute left-0 bottom-full mb-2 w-56 z-10 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                          <div className="bg-white border border-df-line rounded-lg px-3 py-2 text-xs text-slate-600 shadow-xl leading-relaxed">
-                            Fully-loaded annual cost per support rep — salary, benefits, tools, and overhead. Use your real burdened labor rate for the most accurate TCO estimate.
-                          </div>
-                          <div className="w-2 h-2 bg-white border-r border-b border-df-line rotate-45 ml-1.5 -mt-1.5" />
-                        </div>
-                      </div>
-                    </div>
+                    <label className="text-sm font-medium text-slate-700">Cost per Rep / Year</label>
                     {annualSupportCost > 0 && (
-                      <span className="text-xs text-slate-500">
-                        {formatCurrency(annualSupportCost)}/yr total
-                      </span>
+                      <span className="text-xs text-slate-500">{formatCurrency(annualSupportCost)}/yr total</span>
                     )}
                   </div>
                   <div className="relative">
@@ -429,90 +505,145 @@ export default function Home() {
                       className="w-full bg-df-field border border-df-line rounded-lg pl-7 pr-4 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
                     />
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">Annual fully-loaded cost per support rep</p>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="flex flex-col gap-6">
-            <div
-              className={`p-6 md:p-8 shadow-sm border-l-4 transition-colors duration-300 bg-white border border-df-line ${
-                verdict === "BUILD" ? "border-l-df-iris" : "border-l-df-mint"
-              }`}
-            >
-              <div className="text-xs font-semibold text-slate-500 uppercase tracking-[0.2em] mb-3">
-                Strategic Verdict
+            <div className="bg-gradient-to-br from-white to-df-canvas border border-df-line border-l-4 border-l-df-iris rounded-xl p-5">
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-[0.2em] mb-2">
+                Executive Summary
               </div>
-              <div
-                className={`text-5xl md:text-6xl font-black tracking-tight mb-3 ${
-                  verdict === "BUILD" ? "text-df-iris" : "text-df-mint"
-                }`}
-              >
-                {verdict}
+              <div className="text-2xl font-black tracking-tight mb-2 text-df-ink">
+                {tokenSpendEstimate.recommendation === "MODEL_STACK" ? "MODEL STACK" : "VENDOR SAAS"}
               </div>
               <p className="text-sm text-slate-600 leading-relaxed">
-                {verdict === "BUILD"
-                  ? "Your 3-year build cost is lower than the SaaS spend. Building a custom solution is the more cost-efficient long-term investment."
-                  : "Your 3-year SaaS cost is lower than the estimated build cost. Buying a vendor solution saves money over this horizon."}
+                Using <span className="font-semibold">{primaryTool}</span> as primary and{" "}
+                <span className="font-semibold">{secondaryTool}</span> as secondary at differentiation{" "}
+                <span className="font-semibold">{differentiationLevel.toFixed(1)} / 5</span>, the estimator updates
+                your {horizonYears}-year Build vs Buy view in real time.
               </p>
-
-              <div className="mt-6 grid grid-cols-2 gap-4">
-                <div className="bg-df-canvas border border-df-line rounded-xl p-3">
-                  <div className="text-xs text-slate-500 mb-1 font-medium uppercase tracking-wide">3-Year TCO (Build)</div>
-                  <div className="text-lg font-bold text-df-ink tabular-nums">
-                    {formatCurrency(buildThreeYearTco)}
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="bg-white border border-df-line rounded-lg p-3">
+                  <div className="text-[11px] uppercase tracking-wide text-slate-500">{horizonYears}-Year Build Cost</div>
+                  <div className="text-base font-bold text-df-ink tabular-nums">
+                    {formatCurrency(tokenSpendEstimate.estimatedThreeYearTokenTco)}
                   </div>
                 </div>
-                <div className="bg-df-canvas border border-df-line rounded-xl p-3">
-                  <div className="text-xs text-slate-500 mb-1 font-medium uppercase tracking-wide">3-Year TCO (SaaS)</div>
-                  <div className="text-lg font-bold text-df-ink tabular-nums">
-                    {formatCurrency(saasThreeYearTco)}
+                <div className="bg-white border border-df-line rounded-lg p-3">
+                  <div className="text-[11px] uppercase tracking-wide text-slate-500">{horizonYears}-Year Buy Cost</div>
+                  <div className="text-base font-bold text-df-ink tabular-nums">
+                    {formatCurrency(tokenSpendEstimate.threeYearSaasTco)}
                   </div>
                 </div>
               </div>
-            </div>
-
-            <div className="bg-white p-6 md:p-8 shadow-sm border border-df-line border-l-4 border-l-df-iris">
-              <div className="text-df-mint font-bold tracking-[0.3em] uppercase text-sm mb-6">
-                3-Year TCO Comparison
+              <div className="mt-3 text-xs text-slate-600">
+                Delta (Build - Buy):{" "}
+                <span className={`font-semibold ${tokenSpendEstimate.deltaVsSaas <= 0 ? "text-df-mint" : "text-df-iris"}`}>
+                  {tokenSpendEstimate.deltaVsSaas <= 0 ? "-" : "+"}
+                  {formatCurrency(Math.abs(tokenSpendEstimate.deltaVsSaas))}
+                </span>
               </div>
-              <div className="h-[220px] w-full min-w-0">
-                {chartReady ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} barCategoryGap="30%">
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                      <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 12 }} axisLine={false} tickLine={false} />
-                      <YAxis
-                        tickFormatter={(v) => formatCurrency(v)}
-                        tick={{ fill: "#64748b", fontSize: 11 }}
-                        axisLine={false}
-                        tickLine={false}
-                        width={60}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: "#ffffff",
-                          border: "1px solid #e2e8f0",
-                          borderRadius: "8px",
-                          color: "#161b22",
-                        }}
-                        formatter={(value: number) => formatCurrency(value)}
-                      />
-                      <Legend wrapperStyle={{ fontSize: "12px", color: "#64748b" }} />
-                      <Bar dataKey="Custom Build" fill="#7075db" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="Vendor SaaS" fill="#00c896" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-sm text-slate-400 border border-dashed border-df-line rounded-lg bg-df-canvas/50">
-                    Loading chart…
-                  </div>
-                )}
+              <div className="mt-1 text-[11px] text-slate-500">
+                Applied primary model weight: <span className="font-semibold">{primaryCoefficient.toFixed(2)}</span> (
+                {primaryTool})
               </div>
             </div>
           </div>
+
         </div>
+
+        <Card className="overflow-hidden mt-10 relative z-10">
+          <CardHeader className="pb-4 border-b border-df-line bg-df-canvas/40">
+            <CardTitle>Build vs Buy Comparison</CardTitle>
+            <p className="text-sm text-slate-600">
+              Side-by-side {horizonYears}-year TCO comparison for vendor purchase vs proprietary build.
+            </p>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="rounded-lg border border-df-line bg-white p-4">
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-[0.18em] mb-2">
+                  Vendor (Buy)
+                </div>
+                <div className="text-3xl font-black text-df-mint tabular-nums">
+                  {formatCurrency(saasThreeYearTco)}
+                </div>
+                <p className="text-xs text-slate-600 mt-2">
+                  Includes license, implementation, and support-linked SaaS spend.
+                </p>
+              </div>
+              <div className="rounded-lg border border-df-line bg-white p-4">
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-[0.18em] mb-2">
+                  Proprietary (Build)
+                </div>
+                <div className="text-3xl font-black text-df-iris tabular-nums">
+                  {formatCurrency(buildThreeYearTco)}
+                </div>
+                <p className="text-xs text-slate-600 mt-2">
+                  Includes development, maintenance, and ongoing support costs.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 h-[260px] w-full min-w-0 rounded-lg border border-df-line bg-white p-3">
+              {chartReady ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} barCategoryGap="30%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <YAxis
+                      tickFormatter={(v) => formatCurrency(v)}
+                      tick={{ fill: "#64748b", fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={60}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "#ffffff",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "8px",
+                        color: "#161b22",
+                      }}
+                      formatter={(value: number) => formatCurrency(value)}
+                    />
+                    <Legend wrapperStyle={{ fontSize: "12px", color: "#64748b" }} />
+                    <Bar dataKey="Custom Build" fill="#7075db" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Vendor SaaS" fill="#00c896" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-sm text-slate-400 border border-dashed border-df-line rounded-lg bg-df-canvas/50">
+                  Loading chart…
+                </div>
+              )}
+            </div>
+
+            <div
+              className={`mt-5 rounded-xl border px-5 py-4 ${
+                cheaperOption === "Proprietary (Build)"
+                  ? "border-df-iris/30 bg-df-iris/10"
+                  : "border-df-mint/30 bg-df-mint/10"
+              }`}
+            >
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
+                {horizonYears}-Year Savings
+              </div>
+              <div className="mt-1 flex items-end justify-between gap-3">
+                <div className="text-3xl md:text-4xl font-black tabular-nums text-df-ink">
+                  {formatCurrency(savingsAmount)}
+                </div>
+                <div className="text-sm font-semibold text-slate-700 text-right">
+                  Cheaper option: {cheaperOption}
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-3 text-xs text-slate-500">
+              Build estimate assumes 5x velocity via Vibe Coding.
+            </p>
+          </CardContent>
+        </Card>
 
         <div className="mt-10 bg-white p-6 md:p-8 shadow-sm border-t border-[#161b22]/10 relative z-10">
           <div className="flex flex-col gap-4">

@@ -17,13 +17,13 @@ export function generateSummaryMarkdown(
     `## Verdict: **${r.verdict}**`,
     ``,
     r.verdict === "BUILD"
-      ? `Estimated **3-year TCO** favors a **custom build** over vendor SaaS for the parameters below.`
-      : `Estimated **3-year TCO** favors **vendor SaaS** over a custom build for the parameters below.`,
+      ? `Estimated **${r.horizonYears}-year TCO** favors a **custom build** over vendor SaaS for the parameters below.`
+      : `Estimated **${r.horizonYears}-year TCO** favors **vendor SaaS** over a custom build for the parameters below.`,
     ``,
     `| Metric | Value |`,
     `| --- | --- |`,
-    `| 3-year TCO (custom build) | ${formatCurrency(r.buildThreeYearTco)} |`,
-    `| 3-year TCO (vendor SaaS) | ${formatCurrency(r.saasThreeYearTco)} |`,
+    `| ${r.horizonYears}-year TCO (custom build) | ${formatCurrency(r.buildThreeYearTco)} |`,
+    `| ${r.horizonYears}-year TCO (vendor SaaS) | ${formatCurrency(r.saasThreeYearTco)} |`,
     `| Spread | ${formatCurrency(Math.abs(r.buildThreeYearTco - r.saasThreeYearTco))} |`,
     ``,
     `## Parameters`,
@@ -33,7 +33,9 @@ export function generateSummaryMarkdown(
     `| Time to go live | ${formatMonths(inputs.timeToGoLive)} |`,
     `| Expected app lifespan | ${formatMonths(inputs.appLifespan)} |`,
     `| Annual SaaS cost | ${formatSaasCost(inputs.annualSaasCost)}/yr |`,
+    `| Annual SaaS increase | ${inputs.annualCostIncreasePct.toFixed(1)}% |`,
     `| SaaS implementation (one-time) | ${formatCurrency(inputs.saasImplementationCost)} |`,
+    `| Differentiation level | ${inputs.differentiationLevel.toFixed(1)} / 5 |`,
     `| Customization importance | ${inputs.customizationImportance} / 5 |`,
     `| App criticality | ${inputs.appCriticality} / 5 |`,
     `| Self-coding appetite | ${inputs.selfCodingAppetite} / 5 |`,
@@ -50,7 +52,7 @@ export function generateSummaryMarkdown(
     `- Self-coding discount factor: **${r.appetiteDiscount.toFixed(2)}×**`,
     `- SaaS customization multiplier: **${r.saasCustomizationMultiplier.toFixed(2)}×**`,
     ``,
-    `## 3-year cost breakdown (chart values)`,
+    `## ${r.horizonYears}-year cost breakdown (chart values)`,
     ``,
     ...r.chartData.map(
       (row) =>
