@@ -1,28 +1,24 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { computeScenario, type ScenarioInputs } from "@/lib/tco";
+import { NextResponse, after } from "next/server";
+import { insertScenario } from "@/lib/scenario-store";
+import {
+  isScenarioInputs,
+  isScenarioTimelineEntry,
+  type ScenarioPayloadV1,
+  type ScenarioTimelineEntry,
+} from "@/lib/scenario-payload";
+import { computeScenario } from "@/lib/tco";
 import { generateSummaryMarkdown } from "@/lib/summary-report";
+import { generateHarrySummaryMarkdown } from "@/lib/harry-summary";
 
-function isScenarioInputs(v: unknown): v is ScenarioInputs {
-  if (!v || typeof v !== "object") return false;
-  const o = v as Record<string, unknown>;
-  const nums = [
-    "timeToGoLive",
-    "appLifespan",
-    "annualSaasCost",
-    "annualCostIncreasePct",
-    "appCriticality",
-    "selfCodingAppetite",
-    "customizationImportance",
-    "differentiationLevel",
-    "saasImplementationCost",
-    "buildEngineers",
-    "buildTimeframeMonths",
-    "costPerEngineerPerYear",
-    "supportReps",
-    "costPerRepPerYear",
-  ];
-  return nums.every((k) => typeof o[k] === "number" && Number.isFinite(o[k] as number));
+const MAX_TIMELINE_ENTRIES = 300;
+
+function normalizeInputTimeline(raw: unknown): ScenarioTimelineEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ScenarioTimelineEntry[] = [];
+  for (const item of raw.slice(0, MAX_TIMELINE_ENTRIES)) {
+    if (isScenarioTimelineEntry(item)) out.push(item);
+  }
+  return out;
 }
 
 async function sendReportEmail(to: string, subject: string, body: string) {
@@ -32,6 +28,7 @@ async function sendReportEmail(to: string, subject: string, body: string) {
   if (!from) return;
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
+    signal: AbortSignal.timeout(20_000),
     headers: {
       Authorization: `Bearer ${key}`,
       "Content-Type": "application/json",
@@ -55,6 +52,9 @@ export async function POST(req: Request) {
       sessionId?: string;
       email?: string | null;
       inputs?: unknown;
+      inputTimeline?: unknown;
+      finalPrimaryTool?: unknown;
+      finalSecondaryTool?: unknown;
     };
 
     const sessionId = typeof body.sessionId === "string" ? body.sessionId.trim() : "";
@@ -73,37 +73,81 @@ export async function POST(req: Request) {
     }
     const email = emailRaw.length > 0 ? emailRaw : null;
 
-    const result = computeScenario(inputs);
-    const summaryMarkdown = generateSummaryMarkdown(sessionId, inputs, result, email);
+    const inputTimeline = normalizeInputTimeline(body.inputTimeline);
+    const finalPrimaryTool =
+      typeof body.finalPrimaryTool === "string" ? body.finalPrimaryTool.trim() : undefined;
+    const finalSecondaryTool =
+      typeof body.finalSecondaryTool === "string" ? body.finalSecondaryTool.trim() : undefined;
 
-    const row = await prisma.scenario.create({
-      data: {
-        sessionId,
-        email,
-        payloadJson: JSON.stringify(inputs),
-        summaryMarkdown,
-        verdict: result.verdict,
-        buildThreeYearTco: result.buildThreeYearTco,
-        saasThreeYearTco: result.saasThreeYearTco,
-      },
+    const result = computeScenario(inputs);
+    let summaryMarkdown = generateSummaryMarkdown(sessionId, inputs, result, email, {
+      inputTimeline: inputTimeline.length ? inputTimeline : undefined,
+      finalPrimaryTool: finalPrimaryTool || undefined,
+      finalSecondaryTool: finalSecondaryTool || undefined,
     });
 
-    if (email && process.env.RESEND_API_KEY && process.env.RESEND_FROM) {
-      await sendReportEmail(
+    try {
+      summaryMarkdown = await generateHarrySummaryMarkdown({
+        sessionId,
+        inputs,
+        result,
         email,
-        `Build vs. Buy report — ${result.verdict} (${sessionId})`,
-        summaryMarkdown,
-      );
+        inputTimeline: inputTimeline.length ? inputTimeline : undefined,
+        finalPrimaryTool: finalPrimaryTool || undefined,
+        finalSecondaryTool: finalSecondaryTool || undefined,
+      });
+    } catch (harryErr) {
+      console.warn("[scenarios] Harry summary unavailable, using fallback template:", harryErr);
+    }
+
+    const payload: ScenarioPayloadV1 = {
+      v: 1,
+      inputs,
+      inputTimeline,
+    };
+
+    const row = await insertScenario({
+      id: crypto.randomUUID(),
+      sessionId,
+      email,
+      payloadJson: JSON.stringify(payload),
+      summaryMarkdown,
+      verdict: result.verdict,
+      buildThreeYearTco: result.buildThreeYearTco,
+      saasThreeYearTco: result.saasThreeYearTco,
+      createdAt: new Date().toISOString(),
+    });
+
+    const willEmail =
+      Boolean(email && process.env.RESEND_API_KEY && process.env.RESEND_FROM);
+
+    if (willEmail) {
+      after(async () => {
+        try {
+          await sendReportEmail(
+            email!,
+            `Build vs. Buy report — ${result.verdict} (${sessionId})`,
+            summaryMarkdown,
+          );
+        } catch (e) {
+          console.warn("[scenarios] background email failed:", e);
+        }
+      });
     }
 
     return NextResponse.json({
       id: row.id,
       reportUrl: `/report/${row.id}`,
       verdict: result.verdict,
-      emailQueued: Boolean(email && process.env.RESEND_API_KEY && process.env.RESEND_FROM),
+      emailQueued: willEmail,
     });
   } catch (e) {
     console.error("[scenarios] POST", e);
-    return NextResponse.json({ error: "Could not save scenario" }, { status: 500 });
+    const message = e instanceof Error ? e.message : "Could not save scenario";
+    const status = /timed out/i.test(message) ? 504 : 500;
+    return NextResponse.json(
+      { error: status === 504 ? `${message} — verify the Cloudflare D1 binding and database availability.` : message },
+      { status }
+    );
   }
 }

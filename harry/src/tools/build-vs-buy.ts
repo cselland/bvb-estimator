@@ -9,6 +9,10 @@ export type PostScenarioBody = {
   email?: string | null;
   /** Same numeric shape as `ScenarioInputs` in the Next app (`src/lib/tco.ts`). */
   inputs: Record<string, number>;
+  /** Optional exploration history; see `src/lib/scenario-payload.ts` in the Next app. */
+  inputTimeline?: unknown;
+  finalPrimaryTool?: string;
+  finalSecondaryTool?: string;
 };
 
 export type PostScenarioResponse = {
@@ -19,14 +23,15 @@ export type PostScenarioResponse = {
 };
 
 export async function postScenario(
-  env: Pick<Env, "CALCULATOR_BASE_URL">,
+  env: { CALCULATOR_BASE_URL: string },
   body: PostScenarioBody
 ): Promise<PostScenarioResponse> {
-  const base = env.CALCULATOR_BASE_URL.replace(/\/$/, "");
+  const base = String(env.CALCULATOR_BASE_URL ?? "").replace(/\/$/, "");
   const res = await fetch(`${base}/api/scenarios`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(60_000),
   });
   const text = await res.text();
   if (!res.ok) {

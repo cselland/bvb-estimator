@@ -1,0 +1,27 @@
+name = "build-vs-buy-estimator"
+main = ".open-next/worker.js"
+compatibility_date = "2026-05-06"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+
+[vars]
+SUMMARY_PROVIDER = "gemini"
+OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+OPENAI_MODEL = "gemini-2.5-flash"
+
+# Required so `/_next/static/*` (JS/CSS) is served; without this, HTML loads but hydration never runs.
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[[services]]
+binding = "WORKER_SELF_REFERENCE"
+service = "build-vs-buy-estimator"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "build-vs-buy-db"
+database_id = "56ba949d-e804-4224-b4dd-c9dceb6d7030"
+
+[[routes]]
+pattern = "bvb.differentialfactor.com"
+custom_domain = true

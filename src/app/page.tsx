@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Select,
   SelectContent,
@@ -21,6 +21,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { formatCurrency, formatMonths, formatSaasCost } from "@/lib/format";
+import type { ScenarioTimelineEntry } from "@/lib/scenario-payload";
 import {
   MODEL_COST_COEFFICIENTS,
   calculateEstimatedTokenSpend,
@@ -120,6 +121,8 @@ export default function Home() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   /** Recharts measures parent width; mounting after paint avoids an empty / broken chart. */
   const [chartReady, setChartReady] = useState(false);
+  /** Full history of calculator state for reports (distinct snapshots only). */
+  const inputTimelineRef = useRef<ScenarioTimelineEntry[]>([]);
   const annualSaasCost = annualSaasLicenseCost + annualSaasSupportCost;
 
   function getDifferentiationLabel(value: number) {
@@ -152,6 +155,49 @@ export default function Home() {
     supportReps,
     costPerRepPerYear,
   };
+
+  const inputsKey = useMemo(
+    () => JSON.stringify(inputs),
+    [
+      timeToGoLive,
+      appLifespan,
+      annualSaasCost,
+      annualCostIncreasePct,
+      appCriticality,
+      selfCodingAppetite,
+      customizationImportance,
+      differentiationLevel,
+      saasImplementationCost,
+      buildEngineers,
+      buildTimeframeMonths,
+      costPerEngineerPerYear,
+      supportReps,
+      costPerRepPerYear,
+    ],
+  );
+
+  useEffect(() => {
+    const parsed = JSON.parse(inputsKey) as ScenarioInputs;
+    const timeline = inputTimelineRef.current;
+    const last = timeline[timeline.length - 1];
+    if (
+      last &&
+      JSON.stringify(last.inputs) === inputsKey &&
+      last.primaryTool === primaryTool &&
+      last.secondaryTool === secondaryTool
+    ) {
+      return;
+    }
+    timeline.push({
+      at: new Date().toISOString(),
+      inputs: parsed,
+      primaryTool,
+      secondaryTool,
+    });
+    if (timeline.length > 250) {
+      inputTimelineRef.current = timeline.slice(-250);
+    }
+  }, [inputsKey, primaryTool, secondaryTool]);
 
   const {
     horizonYears,
@@ -187,14 +233,31 @@ export default function Home() {
           sessionId,
           email: email.trim() || null,
           inputs,
+          inputTimeline: inputTimelineRef.current,
+          finalPrimaryTool: primaryTool,
+          finalSecondaryTool: secondaryTool,
         }),
+        signal: AbortSignal.timeout(60_000),
       });
-      const data = (await res.json()) as { error?: string; reportUrl?: string; emailQueued?: boolean };
+      let data: { error?: string; reportUrl?: string; emailQueued?: boolean };
+      try {
+        data = (await res.json()) as { error?: string; reportUrl?: string; emailQueued?: boolean };
+      } catch {
+        throw new Error(
+          res.ok
+            ? "Server returned non-JSON (check deployment logs)."
+            : `Save failed (${res.status}). The API may be down or misconfigured.`
+        );
+      }
       if (!res.ok) throw new Error(data.error || "Could not save scenario");
       setReportPath(data.reportUrl ?? null);
       setEmailQueued(Boolean(data.emailQueued));
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Could not save scenario");
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setSaveError("Request timed out after 60s — the server may be stuck on the database or network.");
+      } else {
+        setSaveError(err instanceof Error ? err.message : "Could not save scenario");
+      }
     } finally {
       setSaveLoading(false);
     }
@@ -235,7 +298,9 @@ export default function Home() {
             </span>
           </h1>
           <p className="text-lg text-slate-700 mt-8 max-w-3xl font-light leading-relaxed">
-            Adjust the parameters below to model your total cost of ownership and get a strategic recommendation.
+            This tool is designed for customers evaluating a SaaS purchase or renewal and wanting to assess
+            the feasibility and long-term total cost of ownership of building the capability in-house. Adjust
+            the parameters below to model your TCO and get a strategic recommendation.
           </p>
         </header>
 
@@ -633,8 +698,8 @@ export default function Home() {
                 <div className="text-3xl md:text-4xl font-black tabular-nums text-df-ink">
                   {formatCurrency(savingsAmount)}
                 </div>
-                <div className="text-sm font-semibold text-slate-700 text-right">
-                  Cheaper option: {cheaperOption}
+                <div className="text-2xl md:text-3xl font-black text-slate-700 text-right leading-tight">
+                  Recommended option: {cheaperOption}
                 </div>
               </div>
             </div>

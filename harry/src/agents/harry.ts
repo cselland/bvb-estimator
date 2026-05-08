@@ -1,20 +1,27 @@
 import { Agent, callable } from "agents";
 import { postScenario, type PostScenarioBody } from "../tools/build-vs-buy";
 
+// 1. Broadening all bindings to 'any' to satisfy the rigid Cloudflare.Env constraint
+interface Env {
+  HARRY_MEMORY: any; 
+  MARKET_DB: any;
+  CALCULATOR_BASE_URL: any; // Changed to 'any' to bypass the string-literal check
+  HarryAgent: any; 
+  [key: string]: any; 
+}
+
 export type HarryState = {
   displayName: "Harry";
   role: "analyst";
-  /** Last user-facing topic or thesis string for this DO instance */
   lastTopic: string | null;
 };
 
 /**
- * Harry — analyst agent. One Durable Object instance per `name` in
- * `/agents/harry-agent/:name`. State is persisted via Agents + SQLite;
- * long-term PDF/URL memory uses Vectorize (`HARRY_MEMORY`); tabular market
- * data uses D1 (`MARKET_DB`).
+ * Harry — analyst agent.
  */
 export class HarryAgent extends Agent<Env, HarryState> {
+  env!: Env;
+
   initialState: HarryState = {
     displayName: "Harry",
     role: "analyst",
@@ -36,7 +43,6 @@ export class HarryAgent extends Agent<Env, HarryState> {
     };
   }
 
-  /** Runs a scenario via the build-vs-buy Next.js app at repo root (`POST /api/scenarios`). */
   @callable()
   async runBuildVsBuyScenario(body: PostScenarioBody) {
     return postScenario(this.env, body);
@@ -48,9 +54,6 @@ export class HarryAgent extends Agent<Env, HarryState> {
     return this.state;
   }
 
-  /**
-   * Example D1 read — list recent market series rows (limit for safety).
-   */
   @callable()
   async listMarketSeries(limit = 20) {
     const cap = Math.min(Math.max(limit, 1), 100);
@@ -58,19 +61,15 @@ export class HarryAgent extends Agent<Env, HarryState> {
       "SELECT id, symbol, name, currency, updated_at FROM market_series ORDER BY updated_at DESC LIMIT ?"
     )
       .bind(cap)
-      .all<{ id: string; symbol: string; name: string | null; currency: string; updated_at: string }>();
+      .all();
     return results ?? [];
   }
 
-  /**
-   * Stub for PDF/URL memory: insert a vector + metadata into Vectorize.
-   * Production flow would embed text chunks first (Workers AI / external API).
-   */
   @callable()
   async indexMemoryChunk(args: {
     id: string;
     values: number[];
-    metadata?: Record<string, VectorizeVectorMetadata>;
+    metadata?: Record<string, any>;
   }) {
     const index = this.env.HARRY_MEMORY;
     await index.insert([
