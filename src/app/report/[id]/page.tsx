@@ -1,8 +1,14 @@
 import Link from "next/link";
 import { getScenarioById } from "@/lib/scenario-store";
+import { parseScenarioPayload } from "@/lib/scenario-payload";
 import { notFound } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { markdownDocComponents } from "@/lib/markdown-doc-components";
+import { SiteFooter } from "@/components/site-footer";
+import { SiteHeader } from "@/components/site-header";
+import { isResendConfigured } from "@/lib/resend";
+import { ShareReportForm } from "./share-report-form";
 
 export default async function ReportPage(props: {
   params: Promise<{ id: string }>;
@@ -16,18 +22,38 @@ export default async function ReportPage(props: {
       return notFound();
     }
 
+    const payload = parseScenarioPayload(scenario.payloadJson);
+
     return (
       <main className="min-h-screen bg-df-canvas text-df-ink">
-        <nav className="w-full border-b border-white/10 bg-black backdrop-blur-md">
-          <div className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
-            <Link href="/" className="text-sm font-medium text-[#d1d5db] hover:text-white transition">
-              ← Back to calculator
-            </Link>
-            <span className="text-xs font-mono text-df-mint truncate max-w-[50%]">{scenario.sessionId}</span>
-          </div>
-        </nav>
+        <SiteHeader
+          right={
+            <>
+              <span className="text-xs font-mono text-df-mint truncate max-w-[160px] hidden sm:block">
+                {scenario.sessionId}
+              </span>
+              <Link
+                href="/"
+                className="text-sm font-medium text-[#9ca3af] hover:text-white transition whitespace-nowrap"
+              >
+                ← Calculator
+              </Link>
+            </>
+          }
+        />
 
         <article className="max-w-3xl mx-auto px-6 py-12">
+          {(payload.appName || payload.appDescription) && (
+            <div className="mb-6 rounded-xl border border-df-line bg-white p-5">
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500 mb-2">Application context</p>
+              {payload.appName ? (
+                <h2 className="text-xl font-bold text-df-ink mb-1">{payload.appName}</h2>
+              ) : null}
+              {payload.appDescription ? (
+                <p className="text-sm text-slate-700 leading-relaxed">{payload.appDescription}</p>
+              ) : null}
+            </div>
+          )}
           <p className="text-df-mint font-bold tracking-[0.25em] uppercase text-xs mb-2">Saved scenario</p>
           <h1 className="text-2xl md:text-3xl font-black tracking-tight text-df-ink mb-2">
             Verdict:{" "}
@@ -35,36 +61,21 @@ export default async function ReportPage(props: {
           </h1>
           <p className="text-sm text-slate-600 mb-8">
             Saved {new Date(scenario.createdAt).toLocaleString()}
-            {scenario.email ? ` · ${scenario.email}` : ""}
           </p>
+          {payload.summarySource && (
+            <p className="text-xs text-slate-500 mb-6">
+              Summary source:{" "}
+              <span className="font-semibold">
+                {payload.summarySource === "ai" ? "Harry AI" : "Fallback template"}
+              </span>
+              {payload.summaryError ? " · AI summary temporarily unavailable" : ""}
+            </p>
+          )}
           
           <div className="bg-white shadow-sm border-l-4 border-l-df-mint p-6 md:p-8">
             <h2 className="text-sm font-bold text-df-mint tracking-[0.2em] uppercase mb-4">Summary report</h2>
             <div className="max-w-none text-sm leading-relaxed text-slate-700 overflow-x-auto">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  h1: ({ children }) => <h1 className="text-2xl font-black text-df-ink mb-4">{children}</h1>,
-                  h2: ({ children }) => <h2 className="text-xl font-bold text-df-ink mt-7 mb-3">{children}</h2>,
-                  h3: ({ children }) => <h3 className="text-lg font-semibold text-df-ink mt-6 mb-2">{children}</h3>,
-                  p: ({ children }) => <p className="mb-3 text-slate-700">{children}</p>,
-                  ul: ({ children }) => <ul className="list-disc pl-5 mb-3 space-y-1">{children}</ul>,
-                  ol: ({ children }) => <ol className="list-decimal pl-5 mb-3 space-y-1">{children}</ol>,
-                  table: ({ children }) => (
-                    <table className="w-full border-collapse border border-df-line text-sm my-4">{children}</table>
-                  ),
-                  thead: ({ children }) => <thead className="bg-df-canvas">{children}</thead>,
-                  th: ({ children }) => <th className="border border-df-line px-3 py-2 text-left font-semibold">{children}</th>,
-                  td: ({ children }) => <td className="border border-df-line px-3 py-2 align-top">{children}</td>,
-                  strong: ({ children }) => <strong className="font-bold text-df-ink">{children}</strong>,
-                  a: ({ href, children }) => (
-                    <a href={href} className="text-df-iris underline hover:opacity-80">
-                      {children}
-                    </a>
-                  ),
-                  hr: () => <hr className="my-6 border-df-line" />,
-                }}
-              >
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownDocComponents}>
                 {scenario.summaryMarkdown}
               </ReactMarkdown>
             </div>
@@ -78,7 +89,9 @@ export default async function ReportPage(props: {
               Download .md
             </a>
           </div>
+          <ShareReportForm scenarioId={scenario.id} emailConfigured={isResendConfigured()} />
         </article>
+        <SiteFooter />
       </main>
     );
   } catch (error) {
@@ -92,8 +105,9 @@ export default async function ReportPage(props: {
           <h1 className="text-xl font-black text-df-ink mb-2">Could not load saved scenario</h1>
           <p className="text-sm text-slate-600 leading-relaxed mb-2">{message}</p>
           <p className="text-xs text-slate-500 leading-relaxed mb-6">
-            Confirm the Cloudflare Worker has a <span className="font-mono">DB</span> D1 binding configured and
-            the database is available for this environment.
+            Confirm the Worker has a <span className="font-mono">DB</span> D1 binding. For local development,
+            run <span className="font-mono">pnpm run dev:cf</span> so the app runs with D1 (plain{" "}
+            <span className="font-mono">pnpm run dev</span> has no database).
           </p>
           <Link
             href="/"

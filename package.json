@@ -5,28 +5,28 @@
   "description": "Build-vs-buy workspace: Next.js TCO app (repo root) and Harry analyst Worker (./harry).",
   "scripts": {
     "dev": "next dev -p 3000 --webpack",
-    "build": "prisma generate && next build --webpack",
+    "dev:cf": "pnpm exec opennextjs-cloudflare build && pnpm exec wrangler dev",
+    "build": "next build --webpack",
     "start": "next start -p 3000",
     "lint": "next lint",
-    "postinstall": "prisma generate && node scripts/sync-prisma-client.cjs hoist",
-    "db:push": "prisma db push",
-    "cf:build": "node scripts/sync-prisma-client.cjs hoist && pnpm exec opennextjs-cloudflare build && node scripts/sync-prisma-client.cjs opennext",
+    "cf:build": "pnpm exec opennextjs-cloudflare build",
     "cf:deploy": "pnpm run cf:build && pnpm exec wrangler deploy",
     "harry:dev": "npm --prefix harry run dev",
     "harry:typecheck": "npm --prefix harry run typecheck",
     "harry:deploy": "npm --prefix harry run deploy"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.0",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slider": "^1.3.6",
+    "marked": "^18.0.3",
     "nanoid": "^5.1.11",
     "next": "^16.2.4",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-markdown": "^10.1.0",
     "recharts": "^2.15.4",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "resend": "^6.12.3"
   },
   "devDependencies": {
     "@opennextjs/aws": "^3.10.4",
@@ -36,8 +36,8 @@
     "@types/react-dom": "^18.3.7",
     "autoprefixer": "^10.4.27",
     "postcss": "^8.5.8",
-    "prisma": "^6.19.0",
     "tailwindcss": "^3.4.19",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "wrangler": "^4.90.0"
   }
 }

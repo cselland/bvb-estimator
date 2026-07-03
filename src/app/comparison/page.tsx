@@ -11,6 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { SiteFooter } from "@/components/site-footer";
+import { SiteHeader } from "@/components/site-header";
 import { MODEL_DATA, type ModelName } from "@/lib/models";
 
 const MODEL_OPTIONS = Object.keys(MODEL_DATA) as ModelName[];
@@ -20,7 +22,7 @@ export default function ComparisonPage() {
   const [annualSupportCost, setAnnualSupportCost] = useState(25000);
   const [oneTimeSetupFee, setOneTimeSetupFee] = useState(40000);
 
-  const [primaryTool, setPrimaryTool] = useState<ModelName>("Claude 4.7 Opus");
+  const [primaryTool, setPrimaryTool] = useState<ModelName>("Claude Opus 4.8");
   const [secondaryTool, setSecondaryTool] = useState<ModelName>("Microsoft Copilot (Enterprise)");
   const [differentiation, setDifferentiation] = useState(3);
   const [developerResourceCount, setDeveloperResourceCount] = useState(4);
@@ -57,8 +59,9 @@ export default function ComparisonPage() {
   }, [differentiation]);
 
   return (
-    <main className="min-h-screen bg-df-canvas px-6 py-10 text-df-ink">
-      <div className="mx-auto max-w-6xl">
+    <main className="min-h-screen bg-df-canvas text-df-ink">
+      <SiteHeader />
+      <div className="mx-auto max-w-6xl px-6 py-10">
         <header className="mb-8">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-df-mint">Executive dashboard</p>
           <h1 className="mt-2 text-4xl font-black tracking-tight">Build vs Buy Comparison Inputs</h1>
@@ -239,6 +242,7 @@ export default function ComparisonPage() {
           {differentiation <= 2 && <p className="mt-2 text-xs text-slate-600">Standard workflow: Buy may be safer for compliance.</p>}
         </div>
       </div>
+      <SiteFooter />
     </main>
   );
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getScenarioById } from "@/lib/scenario-store";
+import { getScenarioById, isD1UnavailableError } from "@/lib/scenario-store";
 
 export async function GET(
   request: Request,
@@ -9,7 +9,6 @@ export async function GET(
     // 1. Await the params (Next.js 15/16 requirement)
     const { id } = await props.params;
 
-    // 2. Fetch from MongoDB
     const scenario = await getScenarioById(id);
 
     if (!scenario) {
@@ -31,7 +30,7 @@ export async function GET(
   } catch (error) {
     console.error("Download Error:", error);
     const msg = error instanceof Error ? error.message : "Internal Server Error";
-    const status = /timed out/i.test(msg) ? 504 : 500;
+    const status = isD1UnavailableError(error) ? 503 : /timed out/i.test(msg) ? 504 : 500;
     return new NextResponse(msg, { status });
   }
 }

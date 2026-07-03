@@ -1,5 +1,6 @@
 import { NextResponse, after } from "next/server";
-import { insertScenario } from "@/lib/scenario-store";
+import { isRateLimited, clientIp } from "@/lib/rate-limit";
+import { insertScenario, isD1UnavailableError } from "@/lib/scenario-store";
 import {
   isScenarioInputs,
   isScenarioTimelineEntry,
@@ -7,8 +8,9 @@ import {
   type ScenarioTimelineEntry,
 } from "@/lib/scenario-payload";
 import { computeScenario } from "@/lib/tco";
-import { generateSummaryMarkdown } from "@/lib/summary-report";
 import { generateHarrySummaryMarkdown } from "@/lib/harry-summary";
+import { markdownToEmailHtml } from "@/lib/markdown-email";
+import { sendEmailViaResend } from "@/lib/resend";
 
 const MAX_TIMELINE_ENTRIES = 300;
 
@@ -22,35 +24,21 @@ function normalizeInputTimeline(raw: unknown): ScenarioTimelineEntry[] {
 }
 
 async function sendReportEmail(to: string, subject: string, body: string) {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) return;
-  const from = process.env.RESEND_FROM;
-  if (!from) return;
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    signal: AbortSignal.timeout(20_000),
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject,
-      text: body,
-    }),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    console.warn("[scenarios] Resend error:", res.status, err);
-  }
+  await sendEmailViaResend({ to, subject, text: body, html: markdownToEmailHtml(body) });
 }
 
 export async function POST(req: Request) {
+  // 5 saves per IP per minute — each save triggers a paid AI call.
+  if (isRateLimited(`scenarios:${clientIp(req)}`, 5, 60_000)) {
+    return NextResponse.json({ error: "Too many requests — please wait a minute and try again." }, { status: 429 });
+  }
+
   try {
     const body = (await req.json()) as {
       sessionId?: string;
       email?: string | null;
+      appName?: unknown;
+      appDescription?: unknown;
       inputs?: unknown;
       inputTimeline?: unknown;
       finalPrimaryTool?: unknown;
@@ -58,8 +46,8 @@ export async function POST(req: Request) {
     };
 
     const sessionId = typeof body.sessionId === "string" ? body.sessionId.trim() : "";
-    if (!sessionId) {
-      return NextResponse.json({ error: "sessionId is required" }, { status: 400 });
+    if (!sessionId || sessionId.length > 128 || !/^[\w-]+$/.test(sessionId)) {
+      return NextResponse.json({ error: "Invalid sessionId" }, { status: 400 });
     }
 
     if (!isScenarioInputs(body.inputs)) {
@@ -72,6 +60,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
     }
     const email = emailRaw.length > 0 ? emailRaw : null;
+    const appName =
+      typeof body.appName === "string" && body.appName.trim().length > 0
+        ? body.appName.trim().slice(0, 120)
+        : null;
+    const appDescription =
+      typeof body.appDescription === "string" && body.appDescription.trim().length > 0
+        ? body.appDescription.trim().slice(0, 1000)
+        : null;
 
     const inputTimeline = normalizeInputTimeline(body.inputTimeline);
     const finalPrimaryTool =
@@ -80,30 +76,30 @@ export async function POST(req: Request) {
       typeof body.finalSecondaryTool === "string" ? body.finalSecondaryTool.trim() : undefined;
 
     const result = computeScenario(inputs);
-    let summaryMarkdown = generateSummaryMarkdown(sessionId, inputs, result, email, {
+    const summaryResult = await generateHarrySummaryMarkdown({
+      sessionId,
+      inputs,
+      result,
+      email,
+      appName: appName || undefined,
+      appDescription: appDescription || undefined,
       inputTimeline: inputTimeline.length ? inputTimeline : undefined,
       finalPrimaryTool: finalPrimaryTool || undefined,
       finalSecondaryTool: finalSecondaryTool || undefined,
     });
-
-    try {
-      summaryMarkdown = await generateHarrySummaryMarkdown({
-        sessionId,
-        inputs,
-        result,
-        email,
-        inputTimeline: inputTimeline.length ? inputTimeline : undefined,
-        finalPrimaryTool: finalPrimaryTool || undefined,
-        finalSecondaryTool: finalSecondaryTool || undefined,
-      });
-    } catch (harryErr) {
-      console.warn("[scenarios] Harry summary unavailable, using fallback template:", harryErr);
+    const summaryMarkdown = summaryResult.markdown;
+    if (summaryResult.source === "fallback" && summaryResult.error) {
+      console.warn("[scenarios] Harry summary fallback:", summaryResult.error);
     }
 
     const payload: ScenarioPayloadV1 = {
       v: 1,
       inputs,
       inputTimeline,
+      appName: appName || undefined,
+      appDescription: appDescription || undefined,
+      summarySource: summaryResult.source,
+      summaryError: summaryResult.error ? "AI summary temporarily unavailable" : undefined,
     };
 
     const row = await insertScenario({
@@ -144,10 +140,15 @@ export async function POST(req: Request) {
   } catch (e) {
     console.error("[scenarios] POST", e);
     const message = e instanceof Error ? e.message : "Could not save scenario";
-    const status = /timed out/i.test(message) ? 504 : 500;
-    return NextResponse.json(
-      { error: status === 504 ? `${message} — verify the Cloudflare D1 binding and database availability.` : message },
-      { status }
-    );
+    const status = isD1UnavailableError(e)
+      ? 503
+      : /timed out/i.test(message)
+        ? 504
+        : 500;
+    const errorText =
+      status === 504
+        ? `${message} — verify the Cloudflare D1 binding and database availability.`
+        : message;
+    return NextResponse.json({ error: errorText }, { status });
   }
 }

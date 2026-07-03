@@ -1,5 +1,3 @@
-import { prisma } from "@/lib/prisma";
-import { withTimeout } from "@/lib/with-timeout";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export type ScenarioRecord = {
@@ -14,12 +12,21 @@ export type ScenarioRecord = {
   createdAt: string;
 };
 
+/** Shown when running `next dev` without a D1 binding (use `pnpm run dev:cf` for saves/reports). */
+export const D1_UNAVAILABLE_MESSAGE =
+  "D1 is not available (plain `next dev` has no D1 binding). " +
+  "Run `pnpm run dev:cf` to use Wrangler with local D1, or test against the deployed Worker.";
+
 function isCloudflareRuntime(): boolean {
   return (
     typeof (globalThis as { WebSocketPair?: unknown }).WebSocketPair !== "undefined" ||
     Boolean(process.env.CF_PAGES) ||
     Boolean(process.env.WORKERS_RS_VERSION)
   );
+}
+
+export function isD1UnavailableError(e: unknown): boolean {
+  return e instanceof Error && e.message.includes("D1 is not available");
 }
 
 type D1ResultRow = {
@@ -42,6 +49,7 @@ type D1Prepared = {
 
 type D1DatabaseLike = {
   prepare: (query: string) => D1Prepared;
+  batch: (statements: D1Prepared[]) => Promise<unknown[]>;
 };
 
 async function getD1(): Promise<D1DatabaseLike | null> {
@@ -52,50 +60,46 @@ async function getD1(): Promise<D1DatabaseLike | null> {
   return db as D1DatabaseLike;
 }
 
+async function requireD1(): Promise<D1DatabaseLike> {
+  const d1 = await getD1();
+  if (!d1) throw new Error(D1_UNAVAILABLE_MESSAGE);
+  return d1;
+}
+
+// Schema setup is idempotent but billed per statement. Run it at most once per
+// Worker isolate instead of on every request. A key is marked done only after
+// its DDL succeeds, so a transient failure will retry on the next request.
+const schemaReady = new Set<string>();
+async function once(key: string, fn: () => Promise<void>): Promise<void> {
+  if (schemaReady.has(key)) return;
+  await fn();
+  schemaReady.add(key);
+}
+
 async function ensureScenarioTable(db: D1DatabaseLike): Promise<void> {
-  await db
-    .prepare(
-      `CREATE TABLE IF NOT EXISTS scenario (
-        id TEXT PRIMARY KEY,
-        session_id TEXT NOT NULL,
-        email TEXT,
-        payload_json TEXT NOT NULL,
-        summary_markdown TEXT NOT NULL,
-        verdict TEXT NOT NULL,
-        build_three_year_tco REAL NOT NULL,
-        saas_three_year_tco REAL NOT NULL,
-        created_at TEXT NOT NULL
-      )`,
-    )
-    .run();
-  await db.prepare(`CREATE INDEX IF NOT EXISTS scenario_session_idx ON scenario(session_id)`).run();
-  await db.prepare(`CREATE INDEX IF NOT EXISTS scenario_created_idx ON scenario(created_at)`).run();
+  await once("scenario", async () => {
+    await db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS scenario (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          email TEXT,
+          payload_json TEXT NOT NULL,
+          summary_markdown TEXT NOT NULL,
+          verdict TEXT NOT NULL,
+          build_three_year_tco REAL NOT NULL,
+          saas_three_year_tco REAL NOT NULL,
+          created_at TEXT NOT NULL
+        )`,
+      )
+      .run();
+    await db.prepare(`CREATE INDEX IF NOT EXISTS scenario_session_idx ON scenario(session_id)`).run();
+    await db.prepare(`CREATE INDEX IF NOT EXISTS scenario_created_idx ON scenario(created_at)`).run();
+  });
 }
 
 export async function insertScenario(row: ScenarioRecord): Promise<{ id: string }> {
-  const d1 = await getD1();
-  if (!d1) {
-    const created = await withTimeout(
-      prisma.scenario.create({
-        data: {
-          id: row.id,
-          sessionId: row.sessionId,
-          email: row.email,
-          payloadJson: row.payloadJson,
-          summaryMarkdown: row.summaryMarkdown,
-          verdict: row.verdict,
-          buildThreeYearTco: row.buildThreeYearTco,
-          saasThreeYearTco: row.saasThreeYearTco,
-          createdAt: new Date(row.createdAt),
-        },
-        select: { id: true },
-      }),
-      12_000,
-      "Scenario insert",
-    );
-    return { id: created.id };
-  }
-
+  const d1 = await requireD1();
   await ensureScenarioTable(d1);
   await d1
     .prepare(
@@ -119,30 +123,121 @@ export async function insertScenario(row: ScenarioRecord): Promise<{ id: string 
   return { id: row.id };
 }
 
-export async function getScenarioById(id: string): Promise<ScenarioRecord | null> {
-  const d1 = await getD1();
-  if (!d1) {
-    const found = await withTimeout(
-      prisma.scenario.findUnique({
-        where: { id },
-      }),
-      12_000,
-      "Scenario lookup",
-    );
-    if (!found) return null;
-    return {
-      id: found.id,
-      sessionId: found.sessionId,
-      email: found.email,
-      payloadJson: found.payloadJson,
-      summaryMarkdown: found.summaryMarkdown,
-      verdict: found.verdict,
-      buildThreeYearTco: found.buildThreeYearTco,
-      saasThreeYearTco: found.saasThreeYearTco,
-      createdAt: found.createdAt.toISOString(),
-    };
-  }
+type SessionDraftRecord = {
+  sessionId: string;
+  payloadJson: string;
+  verdict: string;
+  buildThreeYearTco: number;
+  saasThreeYearTco: number;
+  updatedAt: string;
+};
 
+async function ensureSessionDraftTable(db: D1DatabaseLike): Promise<void> {
+  await once("session_draft", async () => {
+    await db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS session_draft (
+          session_id TEXT PRIMARY KEY,
+          payload_json TEXT NOT NULL,
+          verdict TEXT NOT NULL,
+          build_three_year_tco REAL NOT NULL,
+          saas_three_year_tco REAL NOT NULL,
+          updated_at TEXT NOT NULL
+        )`,
+      )
+      .run();
+  });
+}
+
+export async function upsertSessionDraft(row: SessionDraftRecord): Promise<void> {
+  const d1 = await requireD1();
+  await ensureSessionDraftTable(d1);
+  await d1
+    .prepare(
+      `INSERT INTO session_draft (session_id, payload_json, verdict, build_three_year_tco, saas_three_year_tco, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(session_id) DO UPDATE SET
+         payload_json = excluded.payload_json,
+         verdict      = excluded.verdict,
+         build_three_year_tco = excluded.build_three_year_tco,
+         saas_three_year_tco  = excluded.saas_three_year_tco,
+         updated_at   = excluded.updated_at`,
+    )
+    .bind(
+      row.sessionId,
+      row.payloadJson,
+      row.verdict,
+      row.buildThreeYearTco,
+      row.saasThreeYearTco,
+      row.updatedAt,
+    )
+    .run();
+}
+
+type EventRow = {
+  sessionId: string;
+  seq: number;
+  control: string;
+  value: string;
+  occurredAt: string;
+};
+
+async function ensureEventLogTable(db: D1DatabaseLike): Promise<void> {
+  await once("event_log", async () => {
+    await db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS event_log (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          session_id  TEXT    NOT NULL,
+          seq         INTEGER NOT NULL,
+          control     TEXT    NOT NULL,
+          value       TEXT    NOT NULL,
+          occurred_at TEXT    NOT NULL
+        )`,
+      )
+      .run();
+    await db
+      .prepare(`CREATE INDEX IF NOT EXISTS event_log_session_idx ON event_log(session_id)`)
+      .run();
+  });
+}
+
+export async function insertEvents(rows: EventRow[]): Promise<void> {
+  if (rows.length === 0) return;
+  const d1 = await requireD1();
+  await ensureEventLogTable(d1);
+  const stmt = `INSERT INTO event_log (session_id, seq, control, value, occurred_at) VALUES (?, ?, ?, ?, ?)`;
+  await d1.batch(
+    rows.map((r) => d1.prepare(stmt).bind(r.sessionId, r.seq, r.control, r.value, r.occurredAt)),
+  );
+}
+
+async function ensureShareCountColumn(db: D1DatabaseLike): Promise<void> {
+  await once("scenario.share_count", async () => {
+    try {
+      await db.prepare(`ALTER TABLE scenario ADD COLUMN share_count INTEGER NOT NULL DEFAULT 0`).run();
+    } catch {
+      // Column already exists — expected after first run
+    }
+  });
+}
+
+export async function checkAndIncrementShareCount(id: string, max: number): Promise<{ ok: boolean }> {
+  const d1 = await requireD1();
+  await ensureScenarioTable(d1);
+  await ensureShareCountColumn(d1);
+  const row = await d1
+    .prepare(`SELECT share_count FROM scenario WHERE id = ? LIMIT 1`)
+    .bind(id)
+    .first<{ share_count: number }>();
+  if (!row) return { ok: false };
+  if ((row.share_count ?? 0) >= max) return { ok: false };
+  await d1.prepare(`UPDATE scenario SET share_count = share_count + 1 WHERE id = ?`).bind(id).run();
+  return { ok: true };
+}
+
+export async function getScenarioById(id: string): Promise<ScenarioRecord | null> {
+  const d1 = await requireD1();
   await ensureScenarioTable(d1);
   const d = await d1
     .prepare(

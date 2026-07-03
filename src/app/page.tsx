@@ -24,11 +24,16 @@ import { formatCurrency, formatMonths, formatSaasCost } from "@/lib/format";
 import type { ScenarioTimelineEntry } from "@/lib/scenario-payload";
 import {
   MODEL_COST_COEFFICIENTS,
+  OUTPUT_INTENSITY_LABELS,
   calculateEstimatedTokenSpend,
   computeScenario,
   type ModelToolName,
+  type OutputIntensity,
+  type SecondaryModelToolName,
   type ScenarioInputs,
 } from "@/lib/tco";
+import { SiteFooter } from "@/components/site-footer";
+import { SiteHeader } from "@/components/site-header";
 
 interface RangeSliderProps {
   label: string;
@@ -44,7 +49,7 @@ interface RangeSliderProps {
 }
 
 function RangeSlider({ label, value, min, max, step, displayValue, minLabel, maxLabel, tooltip, onChange }: RangeSliderProps) {
-  const defaultMinLabel = min === 1 ? "1" : formatSaasCost(min);
+  const defaultMinLabel = min <= 1 ? String(min) : formatSaasCost(min);
   const defaultMaxLabel = max <= 12 ? String(max) : formatSaasCost(max);
   return (
     <div className="mb-6">
@@ -96,7 +101,7 @@ function RangeSlider({ label, value, min, max, step, displayValue, minLabel, max
 
 export default function Home() {
   const modelOptions = Object.keys(MODEL_COST_COEFFICIENTS) as ModelToolName[];
-  const [timeToGoLive, setTimeToGoLive] = useState(6);
+  const [dateNeeded, setDateNeeded] = useState("2026-12-01");
   const [appLifespan, setAppLifespan] = useState(36);
   const [annualSaasLicenseCost, setAnnualSaasLicenseCost] = useState(80_000);
   const [annualSaasSupportCost, setAnnualSaasSupportCost] = useState(20_000);
@@ -105,14 +110,18 @@ export default function Home() {
   const [selfCodingAppetite, setSelfCodingAppetite] = useState(3);
   const [customizationImportance, setCustomizationImportance] = useState(3);
   const [differentiationLevel, setDifferentiationLevel] = useState(3.0);
-  const [primaryTool, setPrimaryTool] = useState<ModelToolName>("Claude 4.7 Opus");
-  const [secondaryTool, setSecondaryTool] = useState<ModelToolName>("Gemini 3.1 Pro");
+  const [primaryTool, setPrimaryTool] = useState<ModelToolName>("Claude Opus 4.8");
+  const [secondaryTool, setSecondaryTool] = useState<SecondaryModelToolName>("Gemini 2.5 Pro");
+  const [primaryModelWeight, setPrimaryModelWeight] = useState(70);
+  const [outputIntensity, setOutputIntensity] = useState<OutputIntensity>("medium");
   const [saasImplementationCost, setSaasImplementationCost] = useState(25_000);
   const [buildEngineers, setBuildEngineers] = useState(2);
   const [buildTimeframeMonths, setBuildTimeframeMonths] = useState(6);
   const [costPerEngineerPerYear, setCostPerEngineerPerYear] = useState(150_000);
   const [supportReps, setSupportReps] = useState(0);
   const [costPerRepPerYear, setCostPerRepPerYear] = useState(85_000);
+  const [appName, setAppName] = useState("");
+  const [appDescription, setAppDescription] = useState("");
   const [email, setEmail] = useState("");
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -123,7 +132,17 @@ export default function Home() {
   const [chartReady, setChartReady] = useState(false);
   /** Full history of calculator state for reports (distinct snapshots only). */
   const inputTimelineRef = useRef<ScenarioTimelineEntry[]>([]);
+  const sessionIdRef = useRef<string | null>(null);
+  const eventBufferRef = useRef<Array<{ control: string; value: string; seq: number; occurred_at: string }>>([]);
+  const eventSeqRef = useRef(0);
+  const controlTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const annualSaasCost = annualSaasLicenseCost + annualSaasSupportCost;
+  const timeToGoLive = useMemo(() => {
+    const today = new Date();
+    const target = new Date(dateNeeded);
+    const months = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24 * 30.44));
+    return Math.max(1, months);
+  }, [dateNeeded]);
 
   function getDifferentiationLabel(value: number) {
     if (value <= 1.5) return "Pure Commodity/Standard CRUD";
@@ -132,7 +151,9 @@ export default function Home() {
   }
 
   useEffect(() => {
-    setSessionId(`SCN-${Math.random().toString(36).substring(2, 10).toUpperCase()}`);
+    const sid = `SCN-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+    sessionIdRef.current = sid;
+    setSessionId(sid);
     const id = requestAnimationFrame(() => {
       requestAnimationFrame(() => setChartReady(true));
     });
@@ -159,7 +180,7 @@ export default function Home() {
   const inputsKey = useMemo(
     () => JSON.stringify(inputs),
     [
-      timeToGoLive,
+      dateNeeded,
       appLifespan,
       annualSaasCost,
       annualCostIncreasePct,
@@ -199,6 +220,59 @@ export default function Home() {
     }
   }, [inputsKey, primaryTool, secondaryTool]);
 
+  // Debounced write to D1 on every input/context change (1.5 s after last edit).
+  // Silently ignored when D1 is unavailable (plain `next dev`).
+  useEffect(() => {
+    if (!sessionId) return;
+    const timer = setTimeout(() => {
+      fetch(`/api/sessions/${sessionId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          inputs,
+          appName: appName.trim() || null,
+          appDescription: appDescription.trim() || null,
+        }),
+      }).catch(() => undefined);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [inputsKey, appName, appDescription, sessionId]);
+
+  function logEvent(control: string, value: string | number, debounceMs = 500) {
+    clearTimeout(controlTimers.current[control]);
+    controlTimers.current[control] = setTimeout(() => {
+      eventBufferRef.current.push({
+        control,
+        value: String(value),
+        seq: ++eventSeqRef.current,
+        occurred_at: new Date().toISOString(),
+      });
+    }, debounceMs);
+  }
+
+  function flushEvents() {
+    const sid = sessionIdRef.current;
+    if (!sid || eventBufferRef.current.length === 0) return;
+    const batch = eventBufferRef.current.splice(0);
+    fetch("/api/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: sid, events: batch }),
+    }).catch(() => undefined);
+  }
+
+  // Flush every 30 s and whenever the tab is hidden (covers navigation + close).
+  // Uses refs only so deps array is safely empty.
+  useEffect(() => {
+    const interval = setInterval(flushEvents, 30_000);
+    const onVisibility = () => { if (document.visibilityState === "hidden") flushEvents(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const {
     horizonYears,
     annualSupportCost,
@@ -209,12 +283,13 @@ export default function Home() {
   } = computeScenario(inputs);
   const cheaperOption = buildThreeYearTco <= saasThreeYearTco ? "Proprietary (Build)" : "Vendor (Buy)";
   const savingsAmount = Math.abs(buildThreeYearTco - saasThreeYearTco);
-  const primaryCoefficient = MODEL_COST_COEFFICIENTS[primaryTool];
   const tokenSpendEstimate = calculateEstimatedTokenSpend({
     annualSaasCost,
     differentiationLevel,
     primaryModel: primaryTool,
     secondaryModel: secondaryTool,
+    primaryModelWeight,
+    outputIntensity,
     horizonYears,
   });
 
@@ -232,6 +307,8 @@ export default function Home() {
         body: JSON.stringify({
           sessionId,
           email: email.trim() || null,
+          appName: appName.trim() || null,
+          appDescription: appDescription.trim() || null,
           inputs,
           inputTimeline: inputTimelineRef.current,
           finalPrimaryTool: primaryTool,
@@ -265,24 +342,14 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-df-canvas text-df-ink">
-      <nav className="sticky top-0 z-50 w-full border-b border-white/10 bg-black backdrop-blur-md">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-32 flex items-center justify-between gap-4">
-          <a href="https://differentialfactor.com" className="flex items-center min-w-0 hover:opacity-90 transition-opacity">
-            <img
-              src="/images/df-logo-full.jpg"
-              alt="Differential Factor"
-              width={1024}
-              height={340}
-              className="h-[4.5rem] sm:h-[5.25rem] md:h-[6rem] w-auto max-w-[min(100%,calc(100vw-11rem))] sm:max-w-[840px] md:max-w-[1020px] object-contain object-left"
-            />
-          </a>
-          <div className="text-right shrink-0">
-            <div className="text-sm sm:text-base font-bold tracking-tight text-white">
-              Build vs. Buy calculator
-            </div>
-          </div>
-        </div>
-      </nav>
+      <SiteHeader
+        sticky
+        right={
+          <span className="text-sm font-bold tracking-widest uppercase text-white hidden sm:block">
+            Build vs. Buy
+          </span>
+        }
+      />
 
       <div className="max-w-6xl mx-auto px-6 py-12 md:py-16 relative">
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-df-mint/10 blur-[120px] rounded-full pointer-events-none" aria-hidden />
@@ -291,28 +358,62 @@ export default function Home() {
             Strategic decision tool
           </p>
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter leading-[0.95] text-df-ink">
-            Build vs.
+            Build vs. Buy
             <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-df-mint to-df-iris">
-              Buy calculator
+              SaaS calculator
             </span>
           </h1>
           <p className="text-lg text-slate-700 mt-8 max-w-3xl font-light leading-relaxed">
             This tool is designed for customers evaluating a SaaS purchase or renewal and wanting to assess
-            the feasibility and long-term total cost of ownership of building the capability in-house. Adjust
-            the parameters below to model your TCO and get a strategic recommendation.
+            the feasibility and long-term total cost of ownership of building the capability in-house.
+          </p>
+          <p className="text-lg text-slate-700 mt-4 max-w-3xl font-light leading-relaxed">
+            Adjust the parameters below to model your total cost of ownership and get a strategic recommendation.
           </p>
         </header>
 
         <div className="grid grid-cols-1 gap-8 relative z-10">
           <div className="bg-white p-6 md:p-8 shadow-sm border border-df-line border-l-4 border-l-df-mint">
-            <h2 className="text-df-mint font-bold tracking-[0.3em] uppercase text-sm mb-8">
-              Parameters
-            </h2>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="border border-df-line rounded-xl p-5 bg-df-canvas/40">
-                <h2 className="text-df-mint font-black tracking-wide text-2xl mb-5">Buy</h2>
+            <div className="mb-8 rounded-xl border border-df-line bg-df-canvas/40 p-5">
+              <h2 className="text-df-ink font-bold text-lg mb-3">Application being evaluated</h2>
+              <div className="grid grid-cols-1 gap-3 mb-4">
+                <input
+                  type="text"
+                  value={appName}
+                  onChange={(e) => setAppName(e.target.value)}
+                  onBlur={(e) => logEvent("appName", e.target.value, 0)}
+                  placeholder="Example: Customer Support CRM"
+                  maxLength={120}
+                  className="bg-white border border-df-line rounded-lg px-4 py-2.5 text-sm text-df-ink placeholder-slate-400 focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                />
+                <textarea
+                  value={appDescription}
+                  onChange={(e) => setAppDescription(e.target.value)}
+                  onBlur={(e) => logEvent("appDescription", e.target.value, 0)}
+                  placeholder="Describe what this app is for and why this purchase or renewal is under review."
+                  maxLength={1000}
+                  rows={3}
+                  className="bg-white border border-df-line rounded-lg px-4 py-2.5 text-sm text-df-ink placeholder-slate-400 focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20 resize-y"
+                />
+              </div>
+              <div className="mb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-sm font-medium text-slate-700">Date Needed Live</label>
+                  </div>
+                  <span className="text-xs text-slate-500">{timeToGoLive} mo away</span>
+                </div>
+                <input
+                  type="date"
+                  value={dateNeeded}
+                  min={new Date().toISOString().split("T")[0]}
+                  onChange={(e) => { setDateNeeded(e.target.value); logEvent("dateNeeded", e.target.value, 0); }}
+                  aria-label="Date the solution needs to be live"
+                  className="w-full bg-white border border-df-line rounded-lg px-3 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-0">
                 <RangeSlider
                   label="Expected App Lifespan"
                   value={appLifespan}
@@ -323,8 +424,49 @@ export default function Home() {
                   maxLabel="5 yrs"
                   tooltip="How long do you expect this solution to remain in active use? Longer lifespans increase total SaaS spend and can shift buy economics."
                   displayValue={`${Math.round(appLifespan / 12)} yr${appLifespan === 12 ? "" : "s"}`}
-                  onChange={setAppLifespan}
+                  onChange={(v) => { setAppLifespan(v); logEvent("appLifespan", v); }}
                 />
+                <RangeSlider
+                  label="App Criticality"
+                  value={appCriticality}
+                  min={1}
+                  max={5}
+                  step={1}
+                  tooltip="Higher criticality increases required quality and resilience."
+                  displayValue={`${appCriticality} / 5`}
+                  onChange={(v) => { setAppCriticality(v); logEvent("appCriticality", v); }}
+                />
+                <RangeSlider
+                  label="Customization Importance"
+                  value={customizationImportance}
+                  min={1}
+                  max={5}
+                  step={1}
+                  tooltip="How much does this app need to be tailored to your specific business?"
+                  displayValue={`${customizationImportance} / 5`}
+                  onChange={(v) => { setCustomizationImportance(v); logEvent("customizationImportance", v); }}
+                />
+                <RangeSlider
+                  label="Differentiation"
+                  value={differentiationLevel}
+                  min={1}
+                  max={5}
+                  step={0.1}
+                  minLabel="1.0"
+                  maxLabel="5.0"
+                  tooltip="How differentiating is this app to your business?"
+                  displayValue={`${differentiationLevel.toFixed(1)} - ${getDifferentiationLabel(differentiationLevel)}`}
+                  onChange={(v) => { setDifferentiationLevel(v); logEvent("differentiationLevel", v); }}
+                />
+              </div>
+            </div>
+            <h2 className="text-df-mint font-bold tracking-[0.3em] uppercase text-sm mb-8">
+              Parameters
+            </h2>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="border border-df-line rounded-xl p-5 bg-df-canvas/40">
+                <h2 className="text-df-mint font-black tracking-wide text-2xl mb-5">Buy</h2>
                 <div className="mb-6">
                   <div className="flex justify-between items-center mb-2">
                     <label className="text-sm font-medium text-slate-700">Proposed Annual SaaS License ($)</label>
@@ -336,7 +478,7 @@ export default function Home() {
                       min={0}
                       step={1000}
                       value={annualSaasLicenseCost}
-                      onChange={(e) => setAnnualSaasLicenseCost(Math.max(0, Number(e.target.value)))}
+                      onChange={(e) => { const v = Math.max(0, Number(e.target.value)); setAnnualSaasLicenseCost(v); logEvent("annualSaasLicenseCost", v); }}
                       aria-label="Proposed annual SaaS license in dollars"
                       className="w-full bg-df-field border border-df-line rounded-xl pl-9 pr-4 py-4 text-xl font-semibold text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
                     />
@@ -353,7 +495,7 @@ export default function Home() {
                       min={0}
                       step={1000}
                       value={annualSaasSupportCost}
-                      onChange={(e) => setAnnualSaasSupportCost(Math.max(0, Number(e.target.value)))}
+                      onChange={(e) => { const v = Math.max(0, Number(e.target.value)); setAnnualSaasSupportCost(v); logEvent("annualSaasSupportCost", v); }}
                       aria-label="Proposed annual support cost in dollars"
                       className="w-full bg-df-field border border-df-line rounded-xl pl-9 pr-4 py-4 text-xl font-semibold text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
                     />
@@ -373,7 +515,7 @@ export default function Home() {
                       min={0}
                       step={0.5}
                       value={annualCostIncreasePct}
-                      onChange={(e) => setAnnualCostIncreasePct(Math.max(0, Number(e.target.value)))}
+                      onChange={(e) => { const v = Math.max(0, Number(e.target.value)); setAnnualCostIncreasePct(v); logEvent("annualCostIncreasePct", v); }}
                       aria-label="Annual SaaS cost increase percentage"
                       className="w-full bg-df-field border border-df-line rounded-lg pl-4 pr-10 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
                     />
@@ -394,64 +536,20 @@ export default function Home() {
                       min={0}
                       step={1000}
                       value={saasImplementationCost}
-                      onChange={(e) => setSaasImplementationCost(Math.max(0, Number(e.target.value)))}
+                      onChange={(e) => { const v = Math.max(0, Number(e.target.value)); setSaasImplementationCost(v); logEvent("saasImplementationCost", v); }}
                       aria-label="SaaS implementation cost in dollars"
                       className="w-full bg-df-field border border-df-line rounded-lg pl-7 pr-4 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
                     />
                   </div>
                 </div>
-                <RangeSlider
-                  label="Customization Importance"
-                  value={customizationImportance}
-                  min={1}
-                  max={5}
-                  step={1}
-                  tooltip="How much does this app need to be tailored to your specific business?"
-                  displayValue={`${customizationImportance} / 5`}
-                  onChange={setCustomizationImportance}
-                />
-                <RangeSlider
-                  label="Differentiation"
-                  value={differentiationLevel}
-                  min={1}
-                  max={5}
-                  step={0.1}
-                  minLabel="1.0"
-                  maxLabel="5.0"
-                  tooltip="How differentiating is this app to your business?"
-                  displayValue={`${differentiationLevel.toFixed(1)} - ${getDifferentiationLabel(differentiationLevel)}`}
-                  onChange={setDifferentiationLevel}
-                />
-                <RangeSlider
-                  label="App Criticality"
-                  value={appCriticality}
-                  min={1}
-                  max={5}
-                  step={1}
-                  tooltip="Higher criticality increases required quality and resilience."
-                  displayValue={`${appCriticality} / 5`}
-                  onChange={setAppCriticality}
-                />
               </div>
 
               <div className="border border-df-line rounded-xl p-5 bg-white">
                 <h2 className="text-df-iris font-black tracking-wide text-2xl mb-5">Build</h2>
-                <RangeSlider
-                  label="Time to Go Live"
-                  value={timeToGoLive}
-                  min={1}
-                  max={24}
-                  step={1}
-                  minLabel="1 mo"
-                  maxLabel="2 yrs"
-                  tooltip="Short delivery windows can add a rush premium to build cost."
-                  displayValue={formatMonths(timeToGoLive)}
-                  onChange={setTimeToGoLive}
-                />
                 <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-slate-700 block mb-2">Primary AI Tool</label>
-                    <Select value={primaryTool} onValueChange={(value) => setPrimaryTool(value as ModelToolName)}>
+                    <Select value={primaryTool} onValueChange={(value) => { setPrimaryTool(value as ModelToolName); logEvent("primaryTool", value, 0); }}>
                       <SelectTrigger aria-label="Primary AI tool">
                         <SelectValue placeholder="Select primary model" />
                       </SelectTrigger>
@@ -471,11 +569,12 @@ export default function Home() {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-slate-700 block mb-2">Secondary AI Tool</label>
-                    <Select value={secondaryTool} onValueChange={(value) => setSecondaryTool(value as ModelToolName)}>
+                    <Select value={secondaryTool} onValueChange={(value) => { setSecondaryTool(value as SecondaryModelToolName); logEvent("secondaryTool", value, 0); }}>
                       <SelectTrigger aria-label="Secondary AI tool">
                         <SelectValue placeholder="Select secondary model" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
                         {modelOptions.map((tool) => (
                           <SelectItem key={tool} value={tool}>
                             {tool}
@@ -485,6 +584,56 @@ export default function Home() {
                     </Select>
                   </div>
                 </div>
+                <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-slate-700 block mb-2">
+                      Primary Model Traffic Share
+                    </label>
+                    <input
+                      type="range"
+                      min={10}
+                      max={90}
+                      step={5}
+                      value={primaryModelWeight}
+                      onChange={(e) => { const v = Number(e.target.value); setPrimaryModelWeight(v); logEvent("primaryModelWeight", v); }}
+                      className="w-full"
+                      aria-label="Primary model traffic share"
+                    />
+                    <div className="flex justify-between text-xs text-slate-500 mt-1">
+                      <span>10% primary</span>
+                      <span className="font-semibold text-df-ink">{primaryModelWeight}% / {100 - primaryModelWeight}%</span>
+                      <span>90% primary</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-slate-700 block mb-2">Output Intensity</label>
+                    <Select value={outputIntensity} onValueChange={(v) => { setOutputIntensity(v as OutputIntensity); logEvent("outputIntensity", v, 0); }}>
+                      <SelectTrigger aria-label="Output intensity">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(Object.entries(OUTPUT_INTENSITY_LABELS) as [OutputIntensity, string][]).map(([key, label]) => (
+                          <SelectItem key={key} value={key}>{label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-slate-500 mt-1.5">
+                      Output tokens cost 3–5× more than input. Generation-heavy workloads increase token spend significantly.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mb-6 flex items-center justify-between gap-3 rounded-lg border border-df-line border-l-4 border-l-df-iris bg-df-canvas/40 px-4 py-3">
+                  <div className="text-xs font-semibold text-slate-500 uppercase tracking-[0.18em] leading-tight">
+                    Model Stack<br />
+                    <span className="text-[10px] normal-case tracking-normal font-normal text-slate-400">coeff {tokenSpendEstimate.blendedModelCoefficient.toFixed(2)} · {tokenSpendEstimate.outputIntensityMultiplier.toFixed(2)}× output</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-base font-bold text-df-ink tabular-nums">{formatCurrency(tokenSpendEstimate.estimatedThreeYearTokenTco)}</div>
+                    <div className="text-[10px] text-slate-400">{horizonYears}-yr est.</div>
+                  </div>
+                </div>
+
                 <RangeSlider
                   label="Self-Coding Appetite"
                   value={selfCodingAppetite}
@@ -493,19 +642,7 @@ export default function Home() {
                   step={1}
                   tooltip="Higher appetite means faster AI-assisted build velocity."
                   displayValue={`${selfCodingAppetite} / 5`}
-                  onChange={setSelfCodingAppetite}
-                />
-                <RangeSlider
-                  label="Engineers Needed to Build"
-                  value={buildEngineers}
-                  min={1}
-                  max={20}
-                  step={1}
-                  minLabel="1"
-                  maxLabel="20"
-                  tooltip="Dedicated engineering headcount for build delivery."
-                  displayValue={`${buildEngineers} engineer${buildEngineers !== 1 ? "s" : ""}`}
-                  onChange={setBuildEngineers}
+                  onChange={(v) => { setSelfCodingAppetite(v); logEvent("selfCodingAppetite", v); }}
                 />
                 <RangeSlider
                   label="Build Timeframe"
@@ -517,102 +654,79 @@ export default function Home() {
                   maxLabel="2 yrs"
                   tooltip="Planned implementation window for proprietary build."
                   displayValue={formatMonths(buildTimeframeMonths)}
-                  onChange={setBuildTimeframeMonths}
+                  onChange={(v) => { setBuildTimeframeMonths(v); logEvent("buildTimeframeMonths", v); }}
                 />
                 <div className="mb-6">
                   <div className="flex justify-between items-center mb-2">
-                    <label className="text-sm font-medium text-slate-700">Cost per Engineer / Year</label>
-                    <span className="text-xs text-slate-500">
-                      {formatCurrency(buildEngineers * costPerEngineerPerYear)}/yr total
-                    </span>
+                    <label className="text-sm font-medium text-slate-700">Engineers to Build</label>
+                    {buildEngineers > 0 && (
+                      <span className="text-xs text-slate-500">{formatCurrency(buildEngineers * costPerEngineerPerYear)}/yr total</span>
+                    )}
                   </div>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
-                    <input
-                      type="number"
-                      min={0}
-                      step={5000}
-                      value={costPerEngineerPerYear}
-                      onChange={(e) => setCostPerEngineerPerYear(Math.max(0, Number(e.target.value)))}
-                      aria-label="Cost per engineer per year in dollars"
-                      className="w-full bg-df-field border border-df-line rounded-lg pl-7 pr-4 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <select
+                      value={buildEngineers}
+                      onChange={(e) => { const v = Number(e.target.value); setBuildEngineers(v); logEvent("buildEngineers", v); }}
+                      aria-label="Engineers needed to build"
+                      className="bg-df-field border border-df-line rounded-lg px-3 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                    >
+                      {Array.from({ length: 21 }, (_, i) => (
+                        <option key={i} value={i}>{i === 0 ? "0 engineers" : `${i} engineer${i !== 1 ? "s" : ""}`}</option>
+                      ))}
+                    </select>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={5000}
+                        value={costPerEngineerPerYear}
+                        onChange={(e) => { const v = Math.max(0, Number(e.target.value)); setCostPerEngineerPerYear(v); logEvent("costPerEngineerPerYear", v); }}
+                        aria-label="Cost per engineer per year in dollars"
+                        placeholder="Cost / yr"
+                        className="w-full bg-df-field border border-df-line rounded-lg pl-7 pr-4 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                      />
+                    </div>
                   </div>
+                  <p className="text-xs text-slate-400 mt-1">Count · cost per engineer / year</p>
                 </div>
-                <RangeSlider
-                  label="Support Reps Needed"
-                  value={supportReps}
-                  min={0}
-                  max={20}
-                  step={1}
-                  minLabel="0"
-                  maxLabel="20"
-                  tooltip="Dedicated support/ops staffing for the built solution."
-                  displayValue={`${supportReps} rep${supportReps !== 1 ? "s" : ""}`}
-                  onChange={setSupportReps}
-                />
-                <div className="mb-2">
+                <div className="mb-6">
                   <div className="flex justify-between items-center mb-2">
-                    <label className="text-sm font-medium text-slate-700">Cost per Rep / Year</label>
+                    <label className="text-sm font-medium text-slate-700">Support Reps</label>
                     {annualSupportCost > 0 && (
                       <span className="text-xs text-slate-500">{formatCurrency(annualSupportCost)}/yr total</span>
                     )}
                   </div>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
-                    <input
-                      type="number"
-                      min={0}
-                      step={1000}
-                      value={costPerRepPerYear}
-                      onChange={(e) => setCostPerRepPerYear(Math.max(0, Number(e.target.value)))}
-                      aria-label="Cost per support rep per year in dollars"
-                      className="w-full bg-df-field border border-df-line rounded-lg pl-7 pr-4 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <select
+                      value={supportReps}
+                      onChange={(e) => { const v = Number(e.target.value); setSupportReps(v); logEvent("supportReps", v); }}
+                      aria-label="Support reps needed"
+                      className="bg-df-field border border-df-line rounded-lg px-3 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                    >
+                      {Array.from({ length: 21 }, (_, i) => (
+                        <option key={i} value={i}>{i === 0 ? "0 reps" : `${i} rep${i !== 1 ? "s" : ""}`}</option>
+                      ))}
+                    </select>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1000}
+                        value={costPerRepPerYear}
+                        onChange={(e) => { const v = Math.max(0, Number(e.target.value)); setCostPerRepPerYear(v); logEvent("costPerRepPerYear", v); }}
+                        aria-label="Cost per support rep per year in dollars"
+                        placeholder="Cost / yr"
+                        className="w-full bg-df-field border border-df-line rounded-lg pl-7 pr-4 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                      />
+                    </div>
                   </div>
+                  <p className="text-xs text-slate-400 mt-1">Count · cost per rep / year</p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-white to-df-canvas border border-df-line border-l-4 border-l-df-iris rounded-xl p-5">
-              <div className="text-xs font-semibold text-slate-500 uppercase tracking-[0.2em] mb-2">
-                Executive Summary
-              </div>
-              <div className="text-2xl font-black tracking-tight mb-2 text-df-ink">
-                {tokenSpendEstimate.recommendation === "MODEL_STACK" ? "MODEL STACK" : "VENDOR SAAS"}
-              </div>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Using <span className="font-semibold">{primaryTool}</span> as primary and{" "}
-                <span className="font-semibold">{secondaryTool}</span> as secondary at differentiation{" "}
-                <span className="font-semibold">{differentiationLevel.toFixed(1)} / 5</span>, the estimator updates
-                your {horizonYears}-year Build vs Buy view in real time.
-              </p>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="bg-white border border-df-line rounded-lg p-3">
-                  <div className="text-[11px] uppercase tracking-wide text-slate-500">{horizonYears}-Year Build Cost</div>
-                  <div className="text-base font-bold text-df-ink tabular-nums">
-                    {formatCurrency(tokenSpendEstimate.estimatedThreeYearTokenTco)}
-                  </div>
-                </div>
-                <div className="bg-white border border-df-line rounded-lg p-3">
-                  <div className="text-[11px] uppercase tracking-wide text-slate-500">{horizonYears}-Year Buy Cost</div>
-                  <div className="text-base font-bold text-df-ink tabular-nums">
-                    {formatCurrency(tokenSpendEstimate.threeYearSaasTco)}
-                  </div>
-                </div>
-              </div>
-              <div className="mt-3 text-xs text-slate-600">
-                Delta (Build - Buy):{" "}
-                <span className={`font-semibold ${tokenSpendEstimate.deltaVsSaas <= 0 ? "text-df-mint" : "text-df-iris"}`}>
-                  {tokenSpendEstimate.deltaVsSaas <= 0 ? "-" : "+"}
-                  {formatCurrency(Math.abs(tokenSpendEstimate.deltaVsSaas))}
-                </span>
-              </div>
-              <div className="mt-1 text-[11px] text-slate-500">
-                Applied primary model weight: <span className="font-semibold">{primaryCoefficient.toFixed(2)}</span> (
-                {primaryTool})
-              </div>
-            </div>
           </div>
 
         </div>
@@ -673,8 +787,8 @@ export default function Home() {
                       formatter={(value: number) => formatCurrency(value)}
                     />
                     <Legend wrapperStyle={{ fontSize: "12px", color: "#64748b" }} />
-                    <Bar dataKey="Custom Build" fill="#7075db" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="Vendor SaaS" fill="#00c896" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Custom Build" fill="#7075db" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -717,8 +831,7 @@ export default function Home() {
                 Optional: save scenario &amp; generate report
               </div>
               <p className="text-xs text-slate-500 leading-relaxed max-w-xl">
-                Saves your inputs and a markdown summary to the database. Add your email if you want a copy sent
-                (requires <span className="font-mono text-slate-600">RESEND_API_KEY</span> in server env).
+                Saves your inputs and produces a summary analysis. Add your email if you want a copy in your inbox.
               </p>
               <div className="text-xs text-slate-500 mt-2">
                 Session ID:{" "}
@@ -737,9 +850,9 @@ export default function Home() {
                       <p className="font-semibold text-df-ink">Scenario saved</p>
                       <p className="text-slate-600 text-xs mt-0.5">
                         {emailQueued
-                          ? "A summary email is being sent if your mail domain is configured."
+                          ? "A summary email is on its way to your inbox."
                           : email.trim()
-                            ? "Email not sent — configure Resend on the server to enable outbound mail."
+                            ? "Your report was saved. We couldn't send email right now — open the report and use Share with a colleague."
                             : "Open your report below."}
                       </p>
                     </div>
@@ -787,7 +900,56 @@ export default function Home() {
             )}
           </div>
         </div>
+
+        <section className="mt-16 relative z-10 max-w-3xl" aria-labelledby="faq-heading">
+          <h2 id="faq-heading" className="text-2xl md:text-3xl font-black tracking-tight text-df-ink mb-2">
+            Build vs. buy SaaS: common questions
+          </h2>
+          <p className="text-sm text-slate-600 mb-8">
+            Quick answers to the questions behind every build-or-buy software decision.
+          </p>
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-bold text-df-ink mb-1">Should I build or buy my SaaS?</h3>
+              <p className="text-sm text-slate-700 leading-relaxed">
+                It depends on the total cost of ownership over the software&rsquo;s lifespan, how
+                differentiating the capability is, how fast you need it, and your team&rsquo;s build
+                velocity. Commodity needs usually favor buying vendor SaaS; differentiating, long-lived
+                capabilities can favor building. The calculator above compares the TCO of both paths
+                over your expected app lifespan (1–5 years) so you decide with numbers rather than instinct.
+              </p>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-df-ink mb-1">Should I vibe code my SaaS instead of buying it?</h3>
+              <p className="text-sm text-slate-700 leading-relaxed">
+                AI-assisted (&ldquo;vibe&rdquo;) coding can dramatically cut build time and cost, which
+                shifts the build-vs-buy math toward building &mdash; especially for differentiated
+                features. Model your AI model-stack costs and faster build velocity above, and the tool
+                shows whether building still beats a vendor SaaS subscription over your chosen horizon.
+              </p>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-df-ink mb-1">How do I calculate total cost of ownership for build vs. buy?</h3>
+              <p className="text-sm text-slate-700 leading-relaxed">
+                Add up the full multi-year cost of each path. For buying: license, implementation,
+                support, and annual price increases. For building: engineering and AI/model costs,
+                time-to-live, ongoing maintenance, and support. This tool computes both over your
+                chosen horizon (1–5 years) and recommends the cheaper, lower-risk option for your inputs.
+              </p>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-df-ink mb-1">When does building software cost less than buying SaaS?</h3>
+              <p className="text-sm text-slate-700 leading-relaxed">
+                Building tends to win when the app is highly differentiating, has a long lifespan, vendor
+                SaaS pricing is high or rising fast, and your build velocity is strong (e.g. AI-assisted
+                development). Buying tends to win for short-lived, commodity, or compliance-sensitive
+                needs. Enter your numbers above to find the crossover point.
+              </p>
+            </div>
+          </div>
+        </section>
       </div>
+      <SiteFooter />
     </main>
   );
 }

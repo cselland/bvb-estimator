@@ -30,6 +30,7 @@
   },
   "include": [
     "next-env.d.ts",
+    "src/types/markdown-raw.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",

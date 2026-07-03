@@ -1,31 +1,51 @@
 export const MODEL_DATA = {
-  "Claude 4.7 Opus": {
-    coefficient: 1.0,
+  "Claude Opus 4.8": {
+    coefficient: 1.2,
     provider: "Anthropic",
   },
-  "GPT-5.5": {
-    coefficient: 1.1,
+  "GPT-4o": {
+    coefficient: 0.85,
     provider: "OpenAI",
   },
   "Microsoft Copilot (Enterprise)": {
-    coefficient: 0.85,
+    coefficient: 0.80,
     provider: "Microsoft",
   },
-  "Claude 4.6 Sonnet": {
-    coefficient: 0.6,
+  "Claude Sonnet 4.5": {
+    coefficient: 0.55,
     provider: "Anthropic",
   },
-  "Gemini 3.1 Pro": {
-    coefficient: 0.5,
+  "Gemini 2.5 Pro": {
+    coefficient: 0.50,
     provider: "Google",
   },
-  "GPT-5.4 Mini": {
-    coefficient: 0.15,
+  "GPT-4o mini": {
+    coefficient: 0.12,
     provider: "OpenAI",
   },
-  "Gemini 3 Flash": {
-    coefficient: 0.1,
+  "Gemini 2.5 Flash": {
+    coefficient: 0.08,
     provider: "Google",
+  },
+  "Cursor": {
+    coefficient: 0.45,
+    provider: "Anysphere",
+  },
+  "Replit Agent": {
+    coefficient: 0.30,
+    provider: "Replit",
+  },
+  "Bolt.new": {
+    coefficient: 0.28,
+    provider: "StackBlitz",
+  },
+  "Lovable": {
+    coefficient: 0.25,
+    provider: "Lovable",
+  },
+  "v0 (Vercel)": {
+    coefficient: 0.20,
+    provider: "Vercel",
   },
 } as const;
 

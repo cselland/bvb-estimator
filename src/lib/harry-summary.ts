@@ -7,16 +7,25 @@ export type HarrySummaryOptions = {
   inputs: ScenarioInputs;
   result: ScenarioResult;
   email: string | null;
+  appName?: string;
+  appDescription?: string;
   inputTimeline?: ScenarioTimelineEntry[];
   finalPrimaryTool?: string;
   finalSecondaryTool?: string;
+};
+
+export type GeneratedSummary = {
+  markdown: string;
+  source: "ai" | "fallback";
+  error?: string;
 };
 
 type SummaryProvider = "gemini" | "openai" | "claude" | "custom";
 
 type PromptPayload = {
   sessionId: string;
-  email: string | null;
+  appName: string | null;
+  appDescription: string | null;
   verdict: string;
   horizonYears: number;
   buildThreeYearTco: number;
@@ -53,6 +62,8 @@ function getOpenAiConfig(defaultBaseUrl: string, defaultModel: string) {
 
 function fallbackSummary(opts: HarrySummaryOptions): string {
   return generateSummaryMarkdown(opts.sessionId, opts.inputs, opts.result, opts.email, {
+    appName: opts.appName,
+    appDescription: opts.appDescription,
     inputTimeline: opts.inputTimeline,
     finalPrimaryTool: opts.finalPrimaryTool,
     finalSecondaryTool: opts.finalSecondaryTool,
@@ -62,7 +73,8 @@ function fallbackSummary(opts: HarrySummaryOptions): string {
 function buildPromptPayload(opts: HarrySummaryOptions): PromptPayload {
   return {
     sessionId: opts.sessionId,
-    email: opts.email,
+    appName: opts.appName ?? null,
+    appDescription: opts.appDescription ?? null,
     verdict: opts.result.verdict,
     horizonYears: opts.result.horizonYears,
     buildThreeYearTco: opts.result.buildThreeYearTco,
@@ -85,11 +97,12 @@ function buildPromptPayload(opts: HarrySummaryOptions): PromptPayload {
 function buildUserPrompt(promptPayload: PromptPayload): string {
   return (
     "Create a markdown scenario analysis for a business executive audience in plain English. Keep it concise, practical, and free of jargon. " +
-    "Always include these sections: Title, Executive summary, Recommendation with rationale, TCO comparison table, Key assumptions, Risks and sensitivities, Optional timeline highlights (if provided), and Next actions. " +
+    "Always include these sections: Title, Application context, Executive summary, Recommendation with rationale, TCO comparison table, Key assumptions, Risks and sensitivities, Optional timeline highlights (if provided), and Next actions. " +
+    "In the Application context section, explicitly use appName and appDescription from the JSON when provided. " +
     "Use concrete numbers from this JSON and stay consistent with the verdict. " +
     "Keep recommendations consistent with the calculator's slider/input helper guidance and built-in model assumptions (for example: urgency affects rush premium, criticality raises quality/resilience cost, higher self-coding appetite improves build velocity, and longer lifespan compounds SaaS economics). " +
     "State clearly that this is a basic summary based on the provided inputs and that benchmark context references patterns seen across organizations with similar build-vs-buy decisions. " +
-    "End with this exact call to action sentence: For a deeper, more detailed briefing tailored to your specific evaluation, contact harry@differentialfactor.com and we will gladly walk through your assumptions, benchmarks, and decision options.\n\n" +
+    "End with this exact call to action sentence: For a deeper, more detailed briefing tailored to your specific evaluation, contact harry@differentialfactor.ai and we will gladly walk through your assumptions, benchmarks, and decision options.\n\n" +
     JSON.stringify(promptPayload)
   );
 }
@@ -121,7 +134,7 @@ async function callOpenAiCompatible(
         },
       ],
     }),
-    signal: AbortSignal.timeout(25_000),
+    signal: AbortSignal.timeout(40_000),
   });
 
   if (!res.ok) {
@@ -140,7 +153,7 @@ async function callOpenAiCompatible(
 async function callClaude(promptPayload: PromptPayload): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("Missing ANTHROPIC_API_KEY");
-  const model = process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-latest";
+  const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -159,7 +172,7 @@ async function callClaude(promptPayload: PromptPayload): Promise<string> {
         "If benchmark claims are qualitative, label them as directional benchmark context rather than exact external statistics.",
       messages: [{ role: "user", content: buildUserPrompt(promptPayload) }],
     }),
-    signal: AbortSignal.timeout(25_000),
+    signal: AbortSignal.timeout(40_000),
   });
 
   if (!res.ok) {
@@ -190,7 +203,7 @@ async function callCustom(promptPayload: PromptPayload): Promise<string> {
       task: "build-vs-buy-summary",
       input: promptPayload,
     }),
-    signal: AbortSignal.timeout(25_000),
+    signal: AbortSignal.timeout(40_000),
   });
 
   if (!res.ok) {
@@ -204,25 +217,68 @@ async function callCustom(promptPayload: PromptPayload): Promise<string> {
   return out;
 }
 
-export async function generateHarrySummaryMarkdown(opts: HarrySummaryOptions): Promise<string> {
+function shouldRetryError(message: string): boolean {
+  return (
+    /429/.test(message) ||
+    /5\d\d/.test(message) ||
+    /timed out|timeout|network|fetch failed|temporarily unavailable/i.test(message)
+  );
+}
+
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      lastError = err;
+      if (attempt >= maxAttempts || !shouldRetryError(err.message)) break;
+      const delayMs = 350 * attempt;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  throw lastError ?? new Error("Unknown AI summary error");
+}
+
+export async function generateHarrySummaryMarkdown(opts: HarrySummaryOptions): Promise<GeneratedSummary> {
   const provider = getProvider();
   const promptPayload = buildPromptPayload(opts);
 
-  if (provider === "claude") return callClaude(promptPayload);
-  if (provider === "custom") return callCustom(promptPayload);
+  const fallback = (error: string): GeneratedSummary => ({
+    markdown: fallbackSummary(opts),
+    source: "fallback",
+    error,
+  });
 
-  if (provider === "openai") {
-    const cfg = getOpenAiConfig("https://api.openai.com/v1", "gpt-4o-mini");
-    if (!cfg) return fallbackSummary(opts);
-    return callOpenAiCompatible(cfg, promptPayload);
+  try {
+    if (provider === "claude") {
+      const markdown = await withRetry(() => callClaude(promptPayload));
+      return { markdown, source: "ai" };
+    }
+    if (provider === "custom") {
+      const markdown = await withRetry(() => callCustom(promptPayload));
+      return { markdown, source: "ai" };
+    }
+
+    if (provider === "openai") {
+      const cfg = getOpenAiConfig("https://api.openai.com/v1", "gpt-4o-mini");
+      if (!cfg) return fallback("Missing OpenAI configuration");
+      const markdown = await withRetry(() => callOpenAiCompatible(cfg, promptPayload));
+      return { markdown, source: "ai" };
+    }
+
+    // Default provider: Gemini via OpenAI-compatible endpoint.
+    const cfg = getOpenAiConfig(
+      "https://generativelanguage.googleapis.com/v1beta/openai",
+      "gemini-2.5-flash",
+    );
+    if (!cfg) return fallback("Missing Gemini configuration");
+
+    const markdown = await withRetry(() => callOpenAiCompatible(cfg, promptPayload));
+    return { markdown, source: "ai" };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return fallback(message);
   }
-
-  // Default provider: Gemini via OpenAI-compatible endpoint.
-  const cfg = getOpenAiConfig(
-    "https://generativelanguage.googleapis.com/v1beta/openai",
-    "gemini-2.5-flash",
-  );
-  if (!cfg) return fallbackSummary(opts);
-
-  return callOpenAiCompatible(cfg, promptPayload);
 }

@@ -1,16 +1,24 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  /** Helps Prisma resolve the workerd build when bundling for OpenNext / Cloudflare. */
-  serverExternalPackages: ["@prisma/client", "prisma"],
-  /** Ensure Prisma’s `.node` query engine is included in server traces (Cloudflare Worker bundle). */
-  outputFileTracingIncludes: {
-    "/*": [
-      "node_modules/.prisma/client/**/*",
-      "node_modules/@prisma/client/**/*",
-    ],
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ],
+      },
+    ];
   },
   webpack: (config, { dev }) => {
+    config.module.rules.push({
+      test: /\.md$/,
+      type: "asset/source",
+    });
     if (dev) {
       config.watchOptions = {
         ...config.watchOptions,

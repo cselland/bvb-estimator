@@ -27,13 +27,15 @@ export type SummaryMarkdownOptions = {
   inputTimeline?: ScenarioTimelineEntry[];
   finalPrimaryTool?: string;
   finalSecondaryTool?: string;
+  appName?: string;
+  appDescription?: string;
 };
 
 export function generateSummaryMarkdown(
   sessionId: string,
   inputs: ScenarioInputs,
   r: ScenarioResult,
-  email: string | null,
+  _email: string | null, // retained for call-site compatibility; not rendered (PII)
   opts?: SummaryMarkdownOptions,
 ): string {
   const inputTimeline = opts?.inputTimeline?.length ? opts.inputTimeline : undefined;
@@ -41,11 +43,16 @@ export function generateSummaryMarkdown(
   const lines: string[] = [
     `# Build vs. Buy — scenario summary`,
     ``,
+    opts?.appName ? `- **Application:** ${opts.appName}` : null,
+    opts?.appDescription ? `- **Application context:** ${opts.appDescription}` : null,
     `- **Session:** ${sessionId}`,
     `- **Generated:** ${new Date().toISOString()}`,
-    email ? `- **Email:** ${email}` : `- **Email:** (not provided)`,
     ``,
-    `## Verdict: **${r.verdict}**`,
+    `## Executive summary`,
+    ``,
+    `This is a baseline summary generated from your provided inputs.`,
+    ``,
+    `## Recommendation: **${r.verdict}**`,
     ``,
     r.verdict === "BUILD"
       ? `Estimated **${r.horizonYears}-year TCO** favors a **custom build** over vendor SaaS for the parameters below.`
@@ -64,7 +71,7 @@ export function generateSummaryMarkdown(
     `| Input | Value |`,
     `| --- | --- |`,
     ...inputsParameterTableRows(inputs),
-  ];
+  ].filter((line): line is string => line !== null);
 
   if (opts?.finalPrimaryTool && opts?.finalSecondaryTool) {
     lines.push(`| Primary AI tool (estimator) | ${opts.finalPrimaryTool} |`);
@@ -102,6 +109,13 @@ export function generateSummaryMarkdown(
   }
 
   lines.push(
+    `## Next actions`,
+    ``,
+    `- Validate assumptions with your delivery and finance owners before committing budget.`,
+    `- Pressure-test the recommendation against compliance, integration, and change-management constraints.`,
+    ``,
+    `For a deeper, more detailed briefing tailored to your specific evaluation, contact harry@differentialfactor.ai and we will gladly walk through your assumptions, benchmarks, and decision options.`,
+    ``,
     `## Model notes`,
     ``,
     `- Urgency multiplier (vs. 12 mo baseline): **${r.urgencyMultiplier.toFixed(2)}×**`,
