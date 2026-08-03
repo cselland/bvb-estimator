@@ -1,47 +1,356 @@
+/* ============================================================
+   Differential Factor — Build vs. Buy calculator
+   Website design spec V2 (Aug 2026). Values are exact, not
+   suggestions. Hairline rules instead of shadows and cards.
+   Oxblood is a signal color, never a field.
+   ============================================================ */
+
 @tailwind base;
 @tailwind components;
-@tailwind utilities;
+/* NOTE: `@tailwind utilities` is emitted at the END of this file, after the
+   component classes below. Utilities and these classes have equal specificity,
+   so source order decides — utilities must win (e.g. `pl-9` over `.df-field`). */
 
 :root {
-  --background: #f8fafc;
-  --foreground: #161b22;
-  --df-mint: #00c896;
-  --df-iris: #7075db;
+  /* ---- Color (spec §1) ---- */
+  --df-oxblood: #8c2b49; /* signal: rules, eyebrows, tags, primary button, the mark */
+  --df-ink: #141414; /* headlines, body, structural rules, dark sections */
+  --df-paper: #f7f5f0; /* page ground everywhere */
+  --df-panel: #ece7de; /* tool cards, pull quotes, secondary blocks */
+  --df-hairline: #dad5cb; /* light dividers between list items */
+  --df-lead: #2c2a2f; /* lead paragraph text */
+  --df-body: #464349; /* body text */
+  --df-meta: #65616b; /* meta text, mono captions */
+
+  /* ---- Motion (spec §6) — 160ms, color only ---- */
+  --df-dur: 160ms;
+  --df-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* ---- Rules ---- */
+  --df-rule-structural: 1px solid var(--df-ink);
+  --df-rule-hairline: 1px solid var(--df-hairline);
+}
+
+html {
+  background: var(--df-paper);
+  color: var(--df-ink);
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
+  background: var(--df-paper);
+  color: var(--df-body);
+  /* The page body never scrolls horizontally (acceptance check). `clip` rather
+     than `hidden` so the sticky header keeps working. */
+  overflow-x: clip;
 }
+
+/* Focus: 2px Oxblood outline, 2px offset — never removed (spec §6). */
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--df-oxblood);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   Type scale (spec §2) — exact at the 1440px breakpoint.
+   Headlines sentence case; uppercase reserved for mono labels
+   and H2 section heads.
+   ============================================================ */
+
+.df-display {
+  font-family: var(--font-archivo), system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(46px, 8.2vw, 84px); /* Hero H1 84 / 1.0 */
+  line-height: 1;
+  letter-spacing: -0.042em;
+  text-wrap: balance;
+  color: var(--df-ink);
+}
+
+.df-h2 {
+  font-family: var(--font-archivo), system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 26px; /* Section H2 26 / 1.1 uppercase */
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  color: var(--df-ink);
+}
+
+.df-h3 {
+  font-family: var(--font-archivo), system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(26px, 3.1vw, 33px); /* Article H3 33 / 1.1 */
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+  color: var(--df-ink);
+}
+
+.df-h4 {
+  font-family: var(--font-archivo), system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 25px; /* tool-card title (spec §5) */
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+  color: var(--df-ink);
+}
+
+.df-lead {
+  font-family: var(--font-spectral), Georgia, serif;
+  font-weight: 300; /* Spectral 300 — lead only */
+  font-size: clamp(21px, 2.1vw, 26px); /* Lead 26 / 1.5 */
+  line-height: 1.5;
+  text-wrap: pretty;
+  max-width: 840px;
+  color: var(--df-lead);
+}
+
+.df-body {
+  font-family: var(--font-spectral), Georgia, serif;
+  font-weight: 400; /* never below 400 for running text */
+  font-size: 19px; /* Body / dek 19 / 1.6 */
+  line-height: 1.6;
+  text-wrap: pretty;
+  color: var(--df-body);
+}
+
+.df-dek {
+  font-family: var(--font-spectral), Georgia, serif;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 1.6;
+  text-wrap: pretty;
+  color: var(--df-body);
+}
+
+/* The brand's signature label — mono, uppercase, widely tracked */
+.df-eyebrow {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-weight: 400;
+  font-size: 12px; /* Eyebrow 11–12 / 1.4 */
+  line-height: 1.4;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.df-meta {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-weight: 400;
+  font-size: 13px; /* Meta / date 12–13 / 1.8 */
+  line-height: 1.8;
+  letter-spacing: 0.08em;
+  color: var(--df-meta);
+}
+
+/* Every number is mono, tabular (spec §7: quantify in mono). */
+.df-mono {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.df-wordmark {
+  font-family: var(--font-archivo), system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.038em;
+}
+
+/* Measure caps (spec §2) */
+.df-measure-lead {
+  max-width: 840px;
+}
+.df-measure-body {
+  max-width: 700px;
+}
+
+/* ============================================================
+   Components (spec §5)
+   ============================================================ */
+
+/* Tool card — Panel ground, 8px Oxblood left edge, 26px padding.
+   The only card in the system, and Oxblood's largest allowed area
+   besides a button. */
+.df-tool-card {
+  background: var(--df-panel);
+  border-left: 8px solid var(--df-oxblood);
+  padding: 26px;
+}
+
+/* A plain bordered block — hairline rules instead of cards. */
+.df-block {
+  border: var(--df-rule-hairline);
+  background: var(--df-paper);
+  padding: 26px;
+}
+
+.df-block-panel {
+  background: var(--df-panel);
+}
+
+/* Primary button: Oxblood fill, Paper mono caps, 10/17px padding, square. */
+.df-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-weight: 400;
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 10px 17px;
+  border: 1px solid transparent;
+  background: var(--df-oxblood);
+  color: var(--df-paper);
+  transition: background-color var(--df-dur) var(--df-ease),
+    color var(--df-dur) var(--df-ease), border-color var(--df-dur) var(--df-ease);
+}
+
+.df-btn:hover {
+  background: var(--df-ink);
+}
+
+.df-btn:disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Secondary / form button: Ink fill, Paper mono caps, Oxblood on hover. */
+.df-btn-secondary {
+  background: var(--df-ink);
+  border-color: var(--df-ink);
+}
+
+.df-btn-secondary:hover {
+  background: var(--df-oxblood);
+  border-color: var(--df-oxblood);
+}
+
+/* Links are Ink with an Oxblood hover — never Oxblood at rest (spec §1). */
+.df-link {
+  color: var(--df-ink);
+  transition: color var(--df-dur) var(--df-ease);
+}
+
+.df-link:hover {
+  color: var(--df-oxblood);
+}
+
+/* Form fields — Paper ground, 1px Ink border, mono placeholder (spec §5). */
+.df-field {
+  width: 100%;
+  background: var(--df-paper);
+  border: 1px solid var(--df-ink);
+  padding: 14px 16px;
+  color: var(--df-ink);
+  font-family: var(--font-spectral), Georgia, serif;
+  font-size: 17px;
+  transition: border-color var(--df-dur) var(--df-ease);
+}
+
+.df-field::placeholder {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--df-meta);
+}
+
+/* Compact variant for the dense parameter grid. */
+.df-field-sm {
+  padding: 9px 12px;
+  font-size: 15px;
+}
+
+/* Numeric inputs read as instruments, so they're mono. */
+.df-field-num {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* ============================================================
+   Range inputs — square thumb, Oxblood, no shadow (spec §0, §6)
+   ============================================================ */
 
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 4px;
-  border-radius: 9999px;
-  background: #cbd5e1;
+  height: 3px;
+  background: var(--df-hairline);
   outline: none;
 }
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--df-mint);
+  width: 14px;
+  height: 14px;
+  background: var(--df-oxblood);
+  border: 0;
   cursor: pointer;
-  border: 2px solid #ffffff;
-  box-shadow: 0 0 0 2px var(--df-mint), 0 2px 8px rgba(15, 23, 42, 0.12);
+  transition: background-color var(--df-dur) var(--df-ease);
+}
+
+input[type="range"]:hover::-webkit-slider-thumb {
+  background: var(--df-ink);
 }
 
 input[type="range"]::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--df-mint);
+  width: 14px;
+  height: 14px;
+  background: var(--df-oxblood);
+  border: 0;
+  border-radius: 0;
   cursor: pointer;
-  border: 2px solid #ffffff;
-  box-shadow: 0 0 0 2px var(--df-mint), 0 2px 8px rgba(15, 23, 42, 0.12);
+  transition: background-color var(--df-dur) var(--df-ease);
 }
+
+input[type="range"]:hover::-moz-range-thumb {
+  background: var(--df-ink);
+}
+
+input[type="range"]:focus-visible {
+  outline: 2px solid var(--df-oxblood);
+  outline-offset: 4px;
+}
+
+/* Native selects keep the brand's square, hairline treatment. The chevron is an
+   inline SVG — no gradient anywhere in the compiled CSS (acceptance check §1). */
+select.df-field {
+  border-radius: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2 4L6 8L10 4' stroke='%23141414' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-position: right 12px center;
+  background-size: 12px 12px;
+  background-repeat: no-repeat;
+  padding-right: 32px;
+}
+
+/* ============================================================
+   Dark sections — Ink ground, Paper text (footer).
+   On dark grounds the mark is Paper; Oxblood on Ink is forbidden,
+   so the button inverts to a Paper fill.
+   ============================================================ */
+.theme-ink {
+  background: var(--df-ink);
+  color: var(--df-paper);
+}
+
+.theme-ink .df-link {
+  color: var(--df-paper);
+}
+
+.theme-ink .df-link:hover {
+  color: #ffffff;
+}
+
+.theme-ink :where(a, button):focus-visible {
+  outline-color: var(--df-paper);
+}
+
+/* Emitted last so utility classes override the component classes above. */
+@tailwind utilities;

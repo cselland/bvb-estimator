@@ -4,11 +4,20 @@ import * as React from "react";
 
 type DivProps = React.HTMLAttributes<HTMLDivElement>;
 
-export function Card({ className, ...props }: DivProps) {
+/**
+ * Hairline-ruled block, not a SaaS card (spec §0) — no radius, no shadow.
+ * Pass `panel` for the Panel ground used by secondary blocks.
+ */
+export function Card({
+  className,
+  panel = false,
+  ...props
+}: DivProps & { panel?: boolean }) {
   return (
     <div
       className={[
-        "rounded-xl border border-df-line bg-white text-df-ink shadow-sm",
+        "border border-df-hairline text-df-body",
+        panel ? "bg-df-panel" : "bg-df-paper",
         className ?? "",
       ].join(" ")}
       {...props}
@@ -17,11 +26,11 @@ export function Card({ className, ...props }: DivProps) {
 }
 
 export function CardHeader({ className, ...props }: DivProps) {
-  return <div className={["flex flex-col space-y-1.5 p-6", className ?? ""].join(" ")} {...props} />;
+  return <div className={["flex flex-col gap-2 p-6", className ?? ""].join(" ")} {...props} />;
 }
 
 export function CardTitle({ className, ...props }: DivProps) {
-  return <div className={["text-xl font-semibold leading-none tracking-tight", className ?? ""].join(" ")} {...props} />;
+  return <div className={["df-h4", className ?? ""].join(" ")} {...props} />;
 }
 
 export function CardContent({ className, ...props }: DivProps) {

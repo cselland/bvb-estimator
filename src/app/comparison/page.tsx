@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -22,7 +21,7 @@ export default function ComparisonPage() {
   const [annualSupportCost, setAnnualSupportCost] = useState(25000);
   const [oneTimeSetupFee, setOneTimeSetupFee] = useState(40000);
 
-  const [primaryTool, setPrimaryTool] = useState<ModelName>("Claude Opus 4.8");
+  const [primaryTool, setPrimaryTool] = useState<ModelName>("Claude Opus 5");
   const [secondaryTool, setSecondaryTool] = useState<ModelName>("Microsoft Copilot (Enterprise)");
   const [differentiation, setDifferentiation] = useState(3);
   const [developerResourceCount, setDeveloperResourceCount] = useState(4);
@@ -59,80 +58,85 @@ export default function ComparisonPage() {
   }, [differentiation]);
 
   return (
-    <main className="min-h-screen bg-df-canvas text-df-ink">
+    <main className="min-h-screen bg-df-paper text-df-body">
       <SiteHeader />
-      <div className="mx-auto max-w-6xl px-6 py-10">
-        <header className="mb-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-df-mint">Executive dashboard</p>
-          <h1 className="mt-2 text-4xl font-black tracking-tight">Build vs Buy Comparison Inputs</h1>
-          <p className="mt-3 max-w-3xl text-sm text-slate-600">
+      <div className="mx-auto max-w-df-canvas px-8 md:px-df-inset pt-[92px] pb-16">
+        <header className="mb-12 flex flex-col gap-5">
+          <div className="flex items-center gap-4">
+            <span className="block h-px w-[56px] bg-df-oxblood" aria-hidden="true" />
+            <p className="df-eyebrow text-df-oxblood">Executive dashboard</p>
+          </div>
+          <h1 className="df-display">Build vs buy comparison inputs</h1>
+          <p className="df-lead">
             Configure vendor-side and proprietary build-side assumptions with side-by-side controls.
           </p>
         </header>
 
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>Vendor (Buy)</CardTitle>
-              <p className="text-sm text-slate-600">Recurring software costs and one-time onboarding assumptions.</p>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Annual License Cost</label>
+        <div className="border-t border-df-ink" />
+
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-x-[72px] gap-y-12 pt-[72px]">
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <h2 className="df-h2">Vendor (Buy)</h2>
+              <p className="df-dek">Recurring software costs and one-time onboarding assumptions.</p>
+            </div>
+            <div className="flex flex-col gap-5">
+              <div className="flex flex-col gap-2">
+                <label className="df-eyebrow text-df-meta">Annual license cost</label>
                 <input
                   type="number"
                   min={0}
                   step={1000}
                   value={annualLicenseCost}
                   onChange={(e) => setAnnualLicenseCost(Math.max(0, Number(e.target.value)))}
-                  className="h-12 w-full rounded-lg border border-df-line bg-df-field px-3 text-base font-medium text-df-ink focus:border-df-mint focus:outline-none focus:ring-2 focus:ring-df-mint/20"
+                  className="df-field df-field-num"
                   aria-label="Annual license cost"
                 />
               </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Annual Support Cost</label>
+              <div className="flex flex-col gap-2">
+                <label className="df-eyebrow text-df-meta">Annual support cost</label>
                 <input
                   type="number"
                   min={0}
                   step={1000}
                   value={annualSupportCost}
                   onChange={(e) => setAnnualSupportCost(Math.max(0, Number(e.target.value)))}
-                  className="h-12 w-full rounded-lg border border-df-line bg-df-field px-3 text-base font-medium text-df-ink focus:border-df-mint focus:outline-none focus:ring-2 focus:ring-df-mint/20"
+                  className="df-field df-field-num"
                   aria-label="Annual support cost"
                 />
               </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">One-Time Setup Fee</label>
+              <div className="flex flex-col gap-2">
+                <label className="df-eyebrow text-df-meta">One-time setup fee</label>
                 <input
                   type="number"
                   min={0}
                   step={1000}
                   value={oneTimeSetupFee}
                   onChange={(e) => setOneTimeSetupFee(Math.max(0, Number(e.target.value)))}
-                  className="h-12 w-full rounded-lg border border-df-line bg-df-field px-3 text-base font-medium text-df-ink focus:border-df-mint focus:outline-none focus:ring-2 focus:ring-df-mint/20"
+                  className="df-field df-field-num"
                   aria-label="One-time setup fee"
                 />
               </div>
 
-              <div className="rounded-lg border border-df-line bg-df-canvas p-4">
-                <div className="text-xs uppercase tracking-wide text-slate-500">Buy baseline (3-year)</div>
-                <div className="mt-1 text-2xl font-black tabular-nums">
+              <div className="df-tool-card flex flex-col gap-2">
+                <div className="df-eyebrow text-df-ink">Buy baseline (3-year)</div>
+                <div className="df-mono text-[33px] leading-none text-df-ink">
                   ${buyTco3Year.toLocaleString("en-US")}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Proprietary (Build)</CardTitle>
-              <p className="text-sm text-slate-600">Model choices, differentiation, and team resourcing assumptions.</p>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Primary AI Tool</label>
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <h2 className="df-h2">Proprietary (Build)</h2>
+              <p className="df-dek">Model choices, differentiation, and team resourcing assumptions.</p>
+            </div>
+            <div className="flex flex-col gap-5">
+              <div className="flex flex-col gap-2">
+                <label className="df-eyebrow text-df-meta">Primary AI tool</label>
                 <Select value={primaryTool} onValueChange={(v) => setPrimaryTool(v as ModelName)}>
                   <SelectTrigger aria-label="Primary AI Tool">
                     <SelectValue />
@@ -145,11 +149,11 @@ export default function ComparisonPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="mt-1 text-xs text-slate-500">Provider: {primaryProvider}</p>
+                <p className="df-meta text-[12px]">Provider: {primaryProvider}</p>
               </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Secondary AI Tool</label>
+              <div className="flex flex-col gap-2">
+                <label className="df-eyebrow text-df-meta">Secondary AI tool</label>
                 <Select value={secondaryTool} onValueChange={(v) => setSecondaryTool(v as ModelName)}>
                   <SelectTrigger aria-label="Secondary AI Tool">
                     <SelectValue />
@@ -162,15 +166,13 @@ export default function ComparisonPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="mt-1 text-xs text-slate-500">Provider: {secondaryProvider}</p>
+                <p className="df-meta text-[12px]">Provider: {secondaryProvider}</p>
               </div>
 
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <label className="text-sm font-medium text-slate-700">Differentiation</label>
-                  <span className="rounded-md border border-df-line bg-df-field px-2 py-0.5 text-sm font-semibold">
-                    {differentiation} / 5
-                  </span>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-baseline justify-between gap-3">
+                  <label className="df-eyebrow text-df-meta">Differentiation</label>
+                  <span className="df-mono text-[13px] text-df-ink">{differentiation} / 5</span>
                 </div>
                 <Slider
                   min={1}
@@ -180,66 +182,75 @@ export default function ComparisonPage() {
                   onValueChange={(v) => setDifferentiation(v[0] ?? 3)}
                   aria-label="Differentiation"
                 />
-                <div className="mt-1 text-xs text-slate-500">{differentiationLabel}</div>
+                <div className="df-meta text-[12px]">{differentiationLabel}</div>
               </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Developer Resource Count</label>
+              <div className="flex flex-col gap-2">
+                <label className="df-eyebrow text-df-meta">Developer resource count</label>
                 <input
                   type="number"
                   min={0}
                   step={1}
                   value={developerResourceCount}
                   onChange={(e) => setDeveloperResourceCount(Math.max(0, Number(e.target.value)))}
-                  className="h-12 w-full rounded-lg border border-df-line bg-df-field px-3 text-base font-medium text-df-ink focus:border-df-mint focus:outline-none focus:ring-2 focus:ring-df-mint/20"
+                  className="df-field df-field-num"
                   aria-label="Developer resource count"
                 />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card className="col-span-full">
-            <CardHeader>
-              <CardTitle>3-Year Cumulative Cost</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[280px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ left: 8, right: 8, top: 10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="year" tick={{ fill: "#64748b", fontSize: 12 }} axisLine={false} tickLine={false} />
-                    <YAxis
-                      tickFormatter={(v) => `$${Number(v).toLocaleString("en-US")}`}
-                      tick={{ fill: "#64748b", fontSize: 11 }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={95}
-                    />
-                    <Tooltip formatter={(value: number) => `$${value.toLocaleString("en-US")}`} />
-                    <Bar dataKey="Buy" fill="#00c896" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="Build" fill="#7075db" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="col-span-full flex flex-col gap-5 border-t border-df-ink pt-[72px]">
+            <h2 className="df-h2">3-year cumulative cost</h2>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ left: 8, right: 8, top: 10, bottom: 0 }}>
+                  <CartesianGrid stroke="#DAD5CB" vertical={false} />
+                  <XAxis
+                    dataKey="year"
+                    tick={{ fill: "#65616B", fontSize: 12, fontFamily: "var(--font-jetbrains-mono)" }}
+                    axisLine={{ stroke: "#141414" }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tickFormatter={(v) => `$${Number(v).toLocaleString("en-US")}`}
+                    tick={{ fill: "#65616B", fontSize: 11, fontFamily: "var(--font-jetbrains-mono)" }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={95}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "#ECE7DE" }}
+                    contentStyle={{
+                      background: "#F7F5F0",
+                      border: "1px solid #141414",
+                      borderRadius: 0,
+                      color: "#141414",
+                      fontFamily: "var(--font-jetbrains-mono)",
+                      fontSize: 12,
+                    }}
+                    formatter={(value: number) => `$${value.toLocaleString("en-US")}`}
+                  />
+                  {/* Motion is color-only in this system (spec §6) — no grow-in. */}
+                  <Bar dataKey="Buy" fill="#141414" isAnimationActive={false} />
+                  <Bar dataKey="Build" fill="#8C2B49" isAnimationActive={false} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </section>
 
-        <div
-          className={`mt-8 rounded-xl border px-6 py-5 ${
-            winner === "Proprietary (Build)" ? "border-emerald-300 bg-emerald-50" : "border-df-line bg-white"
-          }`}
-        >
-          <div className={`text-xl font-black ${winner === "Proprietary (Build)" ? "text-emerald-700" : "text-df-ink"}`}>
-            Strategic Recommendation
-          </div>
-          <p className={`mt-1 text-sm font-semibold ${winner === "Proprietary (Build)" ? "text-emerald-700" : "text-slate-700"}`}>
-            Winner: {winner}
-          </p>
-          <p className="mt-1 text-sm text-slate-600">
+        <div className="df-tool-card mt-12 flex flex-col gap-2">
+          <div className="df-eyebrow text-df-ink">Strategic recommendation</div>
+          <p className="df-h4">Winner: {winner}</p>
+          <p className="df-mono text-[19px] text-df-ink">
             3-year savings: ${winnerSavings.toLocaleString("en-US")}
           </p>
-          {differentiation <= 2 && <p className="mt-2 text-xs text-slate-600">Standard workflow: Buy may be safer for compliance.</p>}
+          {differentiation <= 2 && (
+            <p className="df-meta text-[12px]">
+              Standard workflow: buying may be safer for compliance.
+            </p>
+          )}
         </div>
       </div>
       <SiteFooter />

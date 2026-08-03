@@ -1,5 +1,10 @@
 import type { ReactNode } from "react";
 
+/**
+ * Header (spec §5) — Paper ground, 24/80px padding, 1px Ink bottom rule.
+ * Contained mark 34px + wordmark Archivo 700 21px. Nav in Spectral 400 17px,
+ * Ink with an Oxblood hover.
+ */
 export function SiteHeader({
   sticky = false,
   right,
@@ -8,26 +13,48 @@ export function SiteHeader({
   right?: ReactNode;
 }) {
   return (
-    <nav className={`${sticky ? "sticky top-0 z-50 " : ""}w-full backdrop-blur-md bg-[#0b0e14]/95 border-b border-white/5`}>
-      <div className="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
-
-        <a href="https://www.differentialfactor.com" aria-label="Differential Factor home" className="flex items-center gap-4 hover:opacity-90 transition group">
-          <img src="/images/logo-mark.png" alt="DF Icon" className="h-8 w-auto object-contain" />
-          <span className="text-sm md:text-base font-bold tracking-[0.25em] text-white uppercase font-display hidden sm:block">
-            DIFFERENTIAL<span className="text-[#00c896] group-hover:text-[#7075db] transition">FACTOR</span>
+    <nav
+      className={`${sticky ? "sticky top-0 z-50 " : ""}w-full bg-df-paper border-b border-df-ink`}
+    >
+      <div className="max-w-df-canvas mx-auto px-8 md:px-df-inset py-6 flex justify-between items-center gap-8">
+        <a
+          href="https://www.differentialfactor.com"
+          aria-label="Differential Factor home"
+          className="flex items-center gap-4 group shrink-0"
+        >
+          <img
+            src="/brand/df-mark-contained-oxblood.svg"
+            alt=""
+            aria-hidden="true"
+            width={34}
+            height={34}
+            className="h-[34px] w-[34px] shrink-0"
+          />
+          <span className="df-wordmark text-[21px] leading-none text-df-ink group-hover:text-df-oxblood transition-colors duration-df ease-df hidden sm:block">
+            Differential Factor
           </span>
         </a>
 
-        <div className="flex items-center gap-6 md:gap-10 text-sm font-medium">
-          <a href="https://www.differentialfactor.com/about" className="text-[#d1d5db] hover:text-white transition tracking-wide hidden md:block">About</a>
-          <a href="https://www.differentialfactor.com/custom-research" className="text-[#d1d5db] hover:text-white transition tracking-wide hidden md:block">Custom Research</a>
-          <a href="https://differentialfactor.substack.com" target="_blank" rel="noopener noreferrer" className="text-[#d1d5db] hover:text-white transition tracking-wide hidden md:block">Substack</a>
-          <a href="https://www.differentialfactor.com/contact" className="bg-[#00c896] text-[#0b0e14] px-6 py-2.5 rounded-full hover:brightness-110 transition font-bold text-xs md:text-sm whitespace-nowrap">
+        <div className="flex items-center gap-6 md:gap-9 font-body text-[17px]">
+          <a
+            href="https://www.differentialfactor.com/about"
+            className="df-link hidden md:block"
+          >
+            About
+          </a>
+          <a
+            href="https://research.differentialfactor.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="df-link hidden md:block"
+          >
+            Research
+          </a>
+          <a href="https://www.differentialfactor.com/contact" className="df-btn">
             Contact
           </a>
           {right && <div className="flex items-center gap-4">{right}</div>}
         </div>
-
       </div>
     </nav>
   );

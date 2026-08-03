@@ -37,32 +37,34 @@ export function ShareReportForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-6 rounded-lg border border-df-line bg-white p-4">
-      <p className="text-sm font-semibold text-df-ink mb-1">Share with a colleague</p>
-      <p className="text-xs text-slate-600 mb-3">
+    <form
+      onSubmit={onSubmit}
+      className="flex flex-col gap-3 border-t border-df-ink pt-8 max-w-md"
+    >
+      <h2 className="df-h2">Share</h2>
+      <p className="df-dek">
         {emailConfigured
           ? "Send the summary report to a colleague's inbox."
           : "Email isn't available on this environment yet."}
       </p>
-      <div className="flex flex-col sm:flex-row gap-2">
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="colleague@company.com"
-          required
-          className="bg-df-field border border-df-line rounded-full px-4 py-2.5 text-sm text-df-ink placeholder-slate-400 focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20 w-full"
-        />
-        <button
-          type="submit"
-          disabled={loading || !email.trim() || !emailConfigured}
-          className="inline-flex justify-center bg-df-mint text-df-nav hover:brightness-110 transition shadow-md shadow-df-mint/15 text-sm font-bold px-5 py-2 rounded-full whitespace-nowrap disabled:opacity-60 disabled:pointer-events-none"
-        >
-          {loading ? "Sending..." : "Share report"}
-        </button>
-      </div>
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
-      {success && <p className="mt-2 text-xs text-df-mint">{success}</p>}
+      {/* Stacked, never side by side (spec §5) */}
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="colleague@company.com"
+        required
+        className="df-field"
+      />
+      <button
+        type="submit"
+        disabled={loading || !email.trim() || !emailConfigured}
+        className="df-btn df-btn-secondary w-full"
+      >
+        {loading ? "Sending…" : "Share report"}
+      </button>
+      {error && <p className="df-meta text-[12px] text-df-oxblood">{error}</p>}
+      {success && <p className="df-meta text-[12px] text-df-ink">{success}</p>}
     </form>
   );
 }

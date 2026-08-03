@@ -11,8 +11,8 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   return (
-    <article className="max-w-3xl mx-auto px-6 py-10 md:py-14">
-      <div className="max-w-none text-sm leading-relaxed text-slate-700 overflow-x-auto">
+    <article className="max-w-df-canvas mx-auto px-8 md:px-df-inset pt-[92px] pb-16">
+      <div className="df-measure-body overflow-x-auto">
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownDocComponents}>
           {termsOfUseMarkdown}
         </ReactMarkdown>

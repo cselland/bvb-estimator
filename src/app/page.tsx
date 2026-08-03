@@ -51,35 +51,30 @@ interface RangeSliderProps {
 function RangeSlider({ label, value, min, max, step, displayValue, minLabel, maxLabel, tooltip, onChange }: RangeSliderProps) {
   const defaultMinLabel = min <= 1 ? String(min) : formatSaasCost(min);
   const defaultMaxLabel = max <= 12 ? String(max) : formatSaasCost(max);
+  // `relative` lives on the root so the tooltip anchors to the column's left
+  // edge, not the trigger — otherwise it runs off-screen on narrow viewports.
   return (
-    <div className="mb-6">
-      <div className="flex justify-between items-center mb-2">
+    <div className="relative flex flex-col gap-2 mb-7">
+      <div className="flex justify-between items-baseline gap-3">
         <div className="flex items-center gap-1.5">
-          <label className="text-sm font-medium text-slate-700">{label}</label>
+          <label className="df-eyebrow text-df-meta">{label}</label>
           {tooltip && (
-            <div className="relative group">
-              <svg
-                className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+            <div className="group flex items-center">
+              <span
+                className="df-mono text-[11px] text-df-meta hover:text-df-oxblood cursor-help transition-colors duration-df ease-df"
+                aria-hidden="true"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div className="absolute left-0 bottom-full mb-2 w-56 z-10 pointer-events-none
-                opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                <div className="bg-white border border-df-line rounded-lg px-3 py-2 text-xs text-slate-600 shadow-xl leading-relaxed">
+                ?
+              </span>
+              <div className="absolute left-0 bottom-full mb-2 w-full max-w-[224px] z-10 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-df ease-df">
+                <div className="bg-df-ink text-df-paper px-3 py-2 text-[13px] leading-relaxed font-body">
                   {tooltip}
                 </div>
-                <div className="w-2 h-2 bg-white border-r border-b border-df-line rotate-45 ml-1.5 -mt-1.5" />
               </div>
             </div>
           )}
         </div>
-        <span className="text-sm font-semibold text-df-ink bg-df-field border border-df-line px-2 py-0.5 rounded-md">
-          {displayValue}
-        </span>
+        <span className="df-mono text-[13px] text-df-ink text-right">{displayValue}</span>
       </div>
       <input
         type="range"
@@ -91,7 +86,7 @@ function RangeSlider({ label, value, min, max, step, displayValue, minLabel, max
         className="w-full"
         aria-label={label}
       />
-      <div className="flex justify-between text-xs text-slate-500 mt-1">
+      <div className="flex justify-between df-meta text-[11px]">
         <span>{minLabel ?? defaultMinLabel}</span>
         <span>{maxLabel ?? defaultMaxLabel}</span>
       </div>
@@ -110,8 +105,8 @@ export default function Home() {
   const [selfCodingAppetite, setSelfCodingAppetite] = useState(3);
   const [customizationImportance, setCustomizationImportance] = useState(3);
   const [differentiationLevel, setDifferentiationLevel] = useState(3.0);
-  const [primaryTool, setPrimaryTool] = useState<ModelToolName>("Claude Opus 4.8");
-  const [secondaryTool, setSecondaryTool] = useState<SecondaryModelToolName>("Gemini 2.5 Pro");
+  const [primaryTool, setPrimaryTool] = useState<ModelToolName>("Claude Opus 5");
+  const [secondaryTool, setSecondaryTool] = useState<SecondaryModelToolName>("Gemini 3.1 Pro");
   const [primaryModelWeight, setPrimaryModelWeight] = useState(70);
   const [outputIntensity, setOutputIntensity] = useState<OutputIntensity>("medium");
   const [saasImplementationCost, setSaasImplementationCost] = useState(25_000);
@@ -341,43 +336,39 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-df-canvas text-df-ink">
+    <main className="min-h-screen bg-df-paper text-df-body">
       <SiteHeader
         sticky
         right={
-          <span className="text-sm font-bold tracking-widest uppercase text-white hidden sm:block">
-            Build vs. Buy
-          </span>
+          <span className="df-eyebrow text-df-meta hidden lg:block">Build vs. Buy</span>
         }
       />
 
-      <div className="max-w-6xl mx-auto px-6 py-12 md:py-16 relative">
-        <div className="absolute -top-24 -left-24 w-96 h-96 bg-df-mint/10 blur-[120px] rounded-full pointer-events-none" aria-hidden />
-        <header className="mb-12 md:mb-16 relative z-10 max-w-4xl">
-          <p className="text-df-mint font-bold tracking-[0.3em] uppercase text-sm mb-6">
-            Strategic decision tool
+      <div className="max-w-df-canvas mx-auto px-8 md:px-df-inset pt-[92px] pb-16">
+        {/* Hero (spec §5) — Oxblood 56px hairline + mono eyebrow, H1, lead at 840px */}
+        <header className="mb-16 flex flex-col gap-6">
+          <div className="flex items-center gap-4">
+            <span className="block h-px w-[56px] bg-df-oxblood" aria-hidden="true" />
+            <p className="df-eyebrow text-df-oxblood">Strategic decision tool</p>
+          </div>
+          <h1 className="df-display">Build vs. buy SaaS calculator</h1>
+          <p className="df-lead">
+            This tool is for teams evaluating a SaaS purchase or renewal who need to assess the
+            feasibility and long-term total cost of ownership of building the capability in-house.
           </p>
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter leading-[0.95] text-df-ink">
-            Build vs. Buy
-            <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-df-mint to-df-iris">
-              SaaS calculator
-            </span>
-          </h1>
-          <p className="text-lg text-slate-700 mt-8 max-w-3xl font-light leading-relaxed">
-            This tool is designed for customers evaluating a SaaS purchase or renewal and wanting to assess
-            the feasibility and long-term total cost of ownership of building the capability in-house.
-          </p>
-          <p className="text-lg text-slate-700 mt-4 max-w-3xl font-light leading-relaxed">
-            Adjust the parameters below to model your total cost of ownership and get a strategic recommendation.
+          <p className="df-body df-measure-body">
+            Adjust the parameters below to model your total cost of ownership and get a strategic
+            recommendation.
           </p>
         </header>
 
-        <div className="grid grid-cols-1 gap-8 relative z-10">
-          <div className="bg-white p-6 md:p-8 shadow-sm border border-df-line border-l-4 border-l-df-mint">
-            <div className="mb-8 rounded-xl border border-df-line bg-df-canvas/40 p-5">
-              <h2 className="text-df-ink font-bold text-lg mb-3">Application being evaluated</h2>
-              <div className="grid grid-cols-1 gap-3 mb-4">
+        <div className="border-t border-df-ink" />
+
+        <div className="flex flex-col gap-16 pt-[72px]">
+          <div className="flex flex-col gap-12">
+            <section className="flex flex-col gap-5">
+              <h2 className="df-h2">Application being evaluated</h2>
+              <div className="grid grid-cols-1 gap-3">
                 <input
                   type="text"
                   value={appName}
@@ -385,7 +376,7 @@ export default function Home() {
                   onBlur={(e) => logEvent("appName", e.target.value, 0)}
                   placeholder="Example: Customer Support CRM"
                   maxLength={120}
-                  className="bg-white border border-df-line rounded-lg px-4 py-2.5 text-sm text-df-ink placeholder-slate-400 focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                  className="df-field df-field-sm"
                 />
                 <textarea
                   value={appDescription}
@@ -394,15 +385,13 @@ export default function Home() {
                   placeholder="Describe what this app is for and why this purchase or renewal is under review."
                   maxLength={1000}
                   rows={3}
-                  className="bg-white border border-df-line rounded-lg px-4 py-2.5 text-sm text-df-ink placeholder-slate-400 focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20 resize-y"
+                  className="df-field df-field-sm resize-y"
                 />
               </div>
-              <div className="mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <div className="flex items-center gap-1.5">
-                    <label className="text-sm font-medium text-slate-700">Date Needed Live</label>
-                  </div>
-                  <span className="text-xs text-slate-500">{timeToGoLive} mo away</span>
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-baseline gap-3">
+                  <label className="df-eyebrow text-df-meta">Date needed live</label>
+                  <span className="df-mono text-[13px] text-df-ink">{timeToGoLive} mo away</span>
                 </div>
                 <input
                   type="date"
@@ -410,10 +399,10 @@ export default function Home() {
                   min={new Date().toISOString().split("T")[0]}
                   onChange={(e) => { setDateNeeded(e.target.value); logEvent("dateNeeded", e.target.value, 0); }}
                   aria-label="Date the solution needs to be live"
-                  className="w-full bg-white border border-df-line rounded-lg px-3 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                  className="df-field df-field-sm df-field-num"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-0 pt-2">
                 <RangeSlider
                   label="Expected App Lifespan"
                   value={appLifespan}
@@ -459,20 +448,17 @@ export default function Home() {
                   onChange={(v) => { setDifferentiationLevel(v); logEvent("differentiationLevel", v); }}
                 />
               </div>
-            </div>
-            <h2 className="text-df-mint font-bold tracking-[0.3em] uppercase text-sm mb-8">
-              Parameters
-            </h2>
+            </section>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="border border-df-line rounded-xl p-5 bg-df-canvas/40">
-                <h2 className="text-df-mint font-black tracking-wide text-2xl mb-5">Buy</h2>
-                <div className="mb-6">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-sm font-medium text-slate-700">Proposed Annual SaaS License ($)</label>
-                  </div>
+            <div className="border-t border-df-hairline" />
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-[72px] gap-y-12">
+              <section className="flex flex-col gap-5">
+                <h2 className="df-h2">Buy</h2>
+                <div className="flex flex-col gap-2">
+                  <label className="df-eyebrow text-df-meta">Proposed annual SaaS license</label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-base">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 df-mono text-[15px] text-df-meta">$</span>
                     <input
                       type="number"
                       min={0}
@@ -480,16 +466,14 @@ export default function Home() {
                       value={annualSaasLicenseCost}
                       onChange={(e) => { const v = Math.max(0, Number(e.target.value)); setAnnualSaasLicenseCost(v); logEvent("annualSaasLicenseCost", v); }}
                       aria-label="Proposed annual SaaS license in dollars"
-                      className="w-full bg-df-field border border-df-line rounded-xl pl-9 pr-4 py-4 text-xl font-semibold text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                      className="df-field df-field-num text-[19px] pl-9"
                     />
                   </div>
                 </div>
-                <div className="mb-6">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-sm font-medium text-slate-700">Proposed Annual Support Cost ($)</label>
-                  </div>
+                <div className="flex flex-col gap-2">
+                  <label className="df-eyebrow text-df-meta">Proposed annual support cost</label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-base">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 df-mono text-[15px] text-df-meta">$</span>
                     <input
                       type="number"
                       min={0}
@@ -497,17 +481,17 @@ export default function Home() {
                       value={annualSaasSupportCost}
                       onChange={(e) => { const v = Math.max(0, Number(e.target.value)); setAnnualSaasSupportCost(v); logEvent("annualSaasSupportCost", v); }}
                       aria-label="Proposed annual support cost in dollars"
-                      className="w-full bg-df-field border border-df-line rounded-xl pl-9 pr-4 py-4 text-xl font-semibold text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                      className="df-field df-field-num text-[19px] pl-9"
                     />
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Annual SaaS Cost Total: {formatCurrency(annualSaasCost)}
+                  <p className="df-meta text-[12px]">
+                    Annual SaaS cost total: {formatCurrency(annualSaasCost)}
                   </p>
                 </div>
-                <div className="mb-6">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-sm font-medium text-slate-700">Annual Cost Increase (%)</label>
-                    <span className="text-xs text-slate-500">compounded over lifespan</span>
+                <div className="flex flex-col gap-2">
+                  <div className="flex justify-between items-baseline gap-3">
+                    <label className="df-eyebrow text-df-meta">Annual cost increase</label>
+                    <span className="df-meta text-[11px]">compounded over lifespan</span>
                   </div>
                   <div className="relative">
                     <input
@@ -517,20 +501,18 @@ export default function Home() {
                       value={annualCostIncreasePct}
                       onChange={(e) => { const v = Math.max(0, Number(e.target.value)); setAnnualCostIncreasePct(v); logEvent("annualCostIncreasePct", v); }}
                       aria-label="Annual SaaS cost increase percentage"
-                      className="w-full bg-df-field border border-df-line rounded-lg pl-4 pr-10 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                      className="df-field df-field-sm df-field-num pr-10"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">%</span>
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 df-mono text-[13px] text-df-meta">%</span>
                   </div>
                 </div>
-                <div className="mb-6">
-                  <div className="flex justify-between items-center mb-2">
-                    <div className="flex items-center gap-1.5">
-                      <label className="text-sm font-medium text-slate-700">SaaS Implementation Cost</label>
-                    </div>
-                    <span className="text-xs text-slate-500">one-time</span>
+                <div className="flex flex-col gap-2">
+                  <div className="flex justify-between items-baseline gap-3">
+                    <label className="df-eyebrow text-df-meta">SaaS implementation cost</label>
+                    <span className="df-meta text-[11px]">one-time</span>
                   </div>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 df-mono text-[13px] text-df-meta">$</span>
                     <input
                       type="number"
                       min={0}
@@ -538,17 +520,17 @@ export default function Home() {
                       value={saasImplementationCost}
                       onChange={(e) => { const v = Math.max(0, Number(e.target.value)); setSaasImplementationCost(v); logEvent("saasImplementationCost", v); }}
                       aria-label="SaaS implementation cost in dollars"
-                      className="w-full bg-df-field border border-df-line rounded-lg pl-7 pr-4 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                      className="df-field df-field-sm df-field-num pl-8"
                     />
                   </div>
                 </div>
-              </div>
+              </section>
 
-              <div className="border border-df-line rounded-xl p-5 bg-white">
-                <h2 className="text-df-iris font-black tracking-wide text-2xl mb-5">Build</h2>
-                <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-slate-700 block mb-2">Primary AI Tool</label>
+              <section className="flex flex-col gap-5">
+                <h2 className="df-h2">Build</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-2">
+                    <label className="df-eyebrow text-df-meta">Primary AI tool</label>
                     <Select value={primaryTool} onValueChange={(value) => { setPrimaryTool(value as ModelToolName); logEvent("primaryTool", value, 0); }}>
                       <SelectTrigger aria-label="Primary AI tool">
                         <SelectValue placeholder="Select primary model" />
@@ -562,13 +544,13 @@ export default function Home() {
                       </SelectContent>
                     </Select>
                     {primaryTool.includes("Microsoft Copilot") && (
-                      <div className="mt-2 w-full rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700">
-                        Uses existing Azure/M365 Credits - High Compliance Tier.
-                      </div>
+                      <p className="df-meta text-[11px] border-l-2 border-df-oxblood pl-3">
+                        Uses existing Azure/M365 credits — high compliance tier.
+                      </p>
                     )}
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-slate-700 block mb-2">Secondary AI Tool</label>
+                  <div className="flex flex-col gap-2">
+                    <label className="df-eyebrow text-df-meta">Secondary AI tool</label>
                     <Select value={secondaryTool} onValueChange={(value) => { setSecondaryTool(value as SecondaryModelToolName); logEvent("secondaryTool", value, 0); }}>
                       <SelectTrigger aria-label="Secondary AI tool">
                         <SelectValue placeholder="Select secondary model" />
@@ -584,11 +566,9 @@ export default function Home() {
                     </Select>
                   </div>
                 </div>
-                <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-slate-700 block mb-2">
-                      Primary Model Traffic Share
-                    </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-2">
+                    <label className="df-eyebrow text-df-meta">Primary model traffic share</label>
                     <input
                       type="range"
                       min={10}
@@ -599,14 +579,14 @@ export default function Home() {
                       className="w-full"
                       aria-label="Primary model traffic share"
                     />
-                    <div className="flex justify-between text-xs text-slate-500 mt-1">
-                      <span>10% primary</span>
-                      <span className="font-semibold text-df-ink">{primaryModelWeight}% / {100 - primaryModelWeight}%</span>
-                      <span>90% primary</span>
+                    <div className="flex justify-between df-meta text-[11px]">
+                      <span>10%</span>
+                      <span className="df-mono text-[13px] text-df-ink">{primaryModelWeight}% / {100 - primaryModelWeight}%</span>
+                      <span>90%</span>
                     </div>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-slate-700 block mb-2">Output Intensity</label>
+                  <div className="flex flex-col gap-2">
+                    <label className="df-eyebrow text-df-meta">Output intensity</label>
                     <Select value={outputIntensity} onValueChange={(v) => { setOutputIntensity(v as OutputIntensity); logEvent("outputIntensity", v, 0); }}>
                       <SelectTrigger aria-label="Output intensity">
                         <SelectValue />
@@ -617,20 +597,23 @@ export default function Home() {
                         ))}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-slate-500 mt-1.5">
+                    <p className="df-meta text-[11px] leading-relaxed">
                       Output tokens cost 3–5× more than input. Generation-heavy workloads increase token spend significantly.
                     </p>
                   </div>
                 </div>
 
-                <div className="mb-6 flex items-center justify-between gap-3 rounded-lg border border-df-line border-l-4 border-l-df-iris bg-df-canvas/40 px-4 py-3">
-                  <div className="text-xs font-semibold text-slate-500 uppercase tracking-[0.18em] leading-tight">
-                    Model Stack<br />
-                    <span className="text-[10px] normal-case tracking-normal font-normal text-slate-400">coeff {tokenSpendEstimate.blendedModelCoefficient.toFixed(2)} · {tokenSpendEstimate.outputIntensityMultiplier.toFixed(2)}× output</span>
+                {/* Model-stack readout — the one Panel block with an Oxblood edge (spec §5) */}
+                <div className="df-tool-card flex items-center justify-between gap-4 py-4">
+                  <div className="flex flex-col gap-1">
+                    <span className="df-eyebrow text-df-ink">Model stack</span>
+                    <span className="df-meta text-[11px]">
+                      coeff {tokenSpendEstimate.blendedModelCoefficient.toFixed(2)} · {tokenSpendEstimate.outputIntensityMultiplier.toFixed(2)}× output
+                    </span>
                   </div>
-                  <div className="text-right">
-                    <div className="text-base font-bold text-df-ink tabular-nums">{formatCurrency(tokenSpendEstimate.estimatedThreeYearTokenTco)}</div>
-                    <div className="text-[10px] text-slate-400">{horizonYears}-yr est.</div>
+                  <div className="text-right flex flex-col gap-1">
+                    <span className="df-mono text-[19px] text-df-ink">{formatCurrency(tokenSpendEstimate.estimatedThreeYearTokenTco)}</span>
+                    <span className="df-meta text-[11px]">{horizonYears}-yr est.</span>
                   </div>
                 </div>
 
@@ -656,11 +639,11 @@ export default function Home() {
                   displayValue={formatMonths(buildTimeframeMonths)}
                   onChange={(v) => { setBuildTimeframeMonths(v); logEvent("buildTimeframeMonths", v); }}
                 />
-                <div className="mb-6">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-sm font-medium text-slate-700">Engineers to Build</label>
+                <div className="flex flex-col gap-2">
+                  <div className="flex justify-between items-baseline gap-3">
+                    <label className="df-eyebrow text-df-meta">Engineers to build</label>
                     {buildEngineers > 0 && (
-                      <span className="text-xs text-slate-500">{formatCurrency(buildEngineers * costPerEngineerPerYear)}/yr total</span>
+                      <span className="df-mono text-[13px] text-df-ink">{formatCurrency(buildEngineers * costPerEngineerPerYear)}/yr</span>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -668,14 +651,14 @@ export default function Home() {
                       value={buildEngineers}
                       onChange={(e) => { const v = Number(e.target.value); setBuildEngineers(v); logEvent("buildEngineers", v); }}
                       aria-label="Engineers needed to build"
-                      className="bg-df-field border border-df-line rounded-lg px-3 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                      className="df-field df-field-sm"
                     >
                       {Array.from({ length: 21 }, (_, i) => (
                         <option key={i} value={i}>{i === 0 ? "0 engineers" : `${i} engineer${i !== 1 ? "s" : ""}`}</option>
                       ))}
                     </select>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 df-mono text-[13px] text-df-meta z-10">$</span>
                       <input
                         type="number"
                         min={0}
@@ -684,17 +667,17 @@ export default function Home() {
                         onChange={(e) => { const v = Math.max(0, Number(e.target.value)); setCostPerEngineerPerYear(v); logEvent("costPerEngineerPerYear", v); }}
                         aria-label="Cost per engineer per year in dollars"
                         placeholder="Cost / yr"
-                        className="w-full bg-df-field border border-df-line rounded-lg pl-7 pr-4 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                        className="df-field df-field-sm df-field-num pl-8"
                       />
                     </div>
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">Count · cost per engineer / year</p>
+                  <p className="df-meta text-[11px]">Count · cost per engineer / year</p>
                 </div>
-                <div className="mb-6">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-sm font-medium text-slate-700">Support Reps</label>
+                <div className="flex flex-col gap-2">
+                  <div className="flex justify-between items-baseline gap-3">
+                    <label className="df-eyebrow text-df-meta">Support reps</label>
                     {annualSupportCost > 0 && (
-                      <span className="text-xs text-slate-500">{formatCurrency(annualSupportCost)}/yr total</span>
+                      <span className="df-mono text-[13px] text-df-ink">{formatCurrency(annualSupportCost)}/yr</span>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -702,14 +685,14 @@ export default function Home() {
                       value={supportReps}
                       onChange={(e) => { const v = Number(e.target.value); setSupportReps(v); logEvent("supportReps", v); }}
                       aria-label="Support reps needed"
-                      className="bg-df-field border border-df-line rounded-lg px-3 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                      className="df-field df-field-sm"
                     >
                       {Array.from({ length: 21 }, (_, i) => (
                         <option key={i} value={i}>{i === 0 ? "0 reps" : `${i} rep${i !== 1 ? "s" : ""}`}</option>
                       ))}
                     </select>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 df-mono text-[13px] text-df-meta z-10">$</span>
                       <input
                         type="number"
                         min={0}
@@ -718,236 +701,220 @@ export default function Home() {
                         onChange={(e) => { const v = Math.max(0, Number(e.target.value)); setCostPerRepPerYear(v); logEvent("costPerRepPerYear", v); }}
                         aria-label="Cost per support rep per year in dollars"
                         placeholder="Cost / yr"
-                        className="w-full bg-df-field border border-df-line rounded-lg pl-7 pr-4 py-2 text-sm text-df-ink focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20"
+                        className="df-field df-field-sm df-field-num pl-8"
                       />
                     </div>
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">Count · cost per rep / year</p>
+                  <p className="df-meta text-[11px]">Count · cost per rep / year</p>
                 </div>
-              </div>
+              </section>
             </div>
-
           </div>
 
-        </div>
+          <div className="border-t border-df-ink" />
 
-        <Card className="overflow-hidden mt-10 relative z-10">
-          <CardHeader className="pb-4 border-b border-df-line bg-df-canvas/40">
-            <CardTitle>Build vs Buy Comparison</CardTitle>
-            <p className="text-sm text-slate-600">
-              Side-by-side {horizonYears}-year TCO comparison for vendor purchase vs proprietary build.
-            </p>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="rounded-lg border border-df-line bg-white p-4">
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-[0.18em] mb-2">
-                  Vendor (Buy)
-                </div>
-                <div className="text-3xl font-black text-df-mint tabular-nums">
+          <section className="flex flex-col gap-8">
+            <div className="flex flex-col gap-3">
+              <h2 className="df-h2">Comparison</h2>
+              <p className="df-body df-measure-body">
+                Side-by-side {horizonYears}-year TCO for vendor purchase vs proprietary build.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-[72px] gap-y-8">
+              <div className="flex flex-col gap-2 border-t border-df-hairline pt-5">
+                <div className="df-eyebrow text-df-meta">Vendor (Buy)</div>
+                <div className="df-mono text-[33px] leading-none text-df-ink">
                   {formatCurrency(saasThreeYearTco)}
                 </div>
-                <p className="text-xs text-slate-600 mt-2">
-                  Includes license, implementation, and support-linked SaaS spend.
+                <p className="df-meta text-[12px]">
+                  License, implementation, and support-linked SaaS spend.
                 </p>
               </div>
-              <div className="rounded-lg border border-df-line bg-white p-4">
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-[0.18em] mb-2">
-                  Proprietary (Build)
-                </div>
-                <div className="text-3xl font-black text-df-iris tabular-nums">
+              <div className="flex flex-col gap-2 border-t border-df-hairline pt-5">
+                <div className="df-eyebrow text-df-meta">Proprietary (Build)</div>
+                <div className="df-mono text-[33px] leading-none text-df-ink">
                   {formatCurrency(buildThreeYearTco)}
                 </div>
-                <p className="text-xs text-slate-600 mt-2">
-                  Includes development, maintenance, and ongoing support costs.
+                <p className="df-meta text-[12px]">
+                  Development, maintenance, and ongoing support costs.
                 </p>
               </div>
             </div>
 
-            <div className="mt-5 h-[260px] w-full min-w-0 rounded-lg border border-df-line bg-white p-3">
+            {/* Chart: Ink for the vendor path, Oxblood for the build path — see note in README. */}
+            <div className="h-[300px] w-full min-w-0 border-t border-df-hairline pt-5">
               {chartReady ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} barCategoryGap="30%">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <CartesianGrid stroke="#DAD5CB" vertical={false} />
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fill: "#65616B", fontSize: 12, fontFamily: "var(--font-jetbrains-mono)" }}
+                      axisLine={{ stroke: "#141414" }}
+                      tickLine={false}
+                    />
                     <YAxis
                       tickFormatter={(v) => formatCurrency(v)}
-                      tick={{ fill: "#64748b", fontSize: 11 }}
+                      tick={{ fill: "#65616B", fontSize: 11, fontFamily: "var(--font-jetbrains-mono)" }}
                       axisLine={false}
                       tickLine={false}
-                      width={60}
+                      width={64}
                     />
                     <Tooltip
+                      cursor={{ fill: "#ECE7DE" }}
                       contentStyle={{
-                        background: "#ffffff",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "8px",
-                        color: "#161b22",
+                        background: "#F7F5F0",
+                        border: "1px solid #141414",
+                        borderRadius: 0,
+                        color: "#141414",
+                        fontFamily: "var(--font-jetbrains-mono)",
+                        fontSize: 12,
                       }}
                       formatter={(value: number) => formatCurrency(value)}
                     />
-                    <Legend wrapperStyle={{ fontSize: "12px", color: "#64748b" }} />
-                    <Bar dataKey="Vendor SaaS" fill="#00c896" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="Custom Build" fill="#7075db" radius={[4, 4, 0, 0]} />
+                    <Legend
+                      wrapperStyle={{
+                        fontSize: 11,
+                        color: "#65616B",
+                        fontFamily: "var(--font-jetbrains-mono)",
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                      }}
+                    />
+                    {/* Motion is color-only in this system (spec §6) — no grow-in. */}
+                    <Bar dataKey="Vendor SaaS" fill="#141414" isAnimationActive={false} />
+                    <Bar dataKey="Custom Build" fill="#8C2B49" isAnimationActive={false} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-full flex items-center justify-center text-sm text-slate-400 border border-dashed border-df-line rounded-lg bg-df-canvas/50">
+                <div className="h-full flex items-center justify-center df-meta border border-df-hairline">
                   Loading chart…
                 </div>
               )}
             </div>
 
-            <div
-              className={`mt-5 rounded-xl border px-5 py-4 ${
-                cheaperOption === "Proprietary (Build)"
-                  ? "border-df-iris/30 bg-df-iris/10"
-                  : "border-df-mint/30 bg-df-mint/10"
-              }`}
-            >
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
-                {horizonYears}-Year Savings
-              </div>
-              <div className="mt-1 flex items-end justify-between gap-3">
-                <div className="text-3xl md:text-4xl font-black tabular-nums text-df-ink">
+            {/* Verdict — Panel ground, Oxblood edge. The conclusion states first (spec §7). */}
+            <div className="df-tool-card flex flex-col gap-3">
+              <div className="df-eyebrow text-df-ink">{horizonYears}-year savings</div>
+              <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+                <div className="df-mono text-[42px] leading-none text-df-ink">
                   {formatCurrency(savingsAmount)}
                 </div>
-                <div className="text-2xl md:text-3xl font-black text-slate-700 text-right leading-tight">
-                  Recommended option: {cheaperOption}
-                </div>
+                <div className="df-h4 md:text-right">Recommended: {cheaperOption}</div>
               </div>
-            </div>
-
-            <p className="mt-3 text-xs text-slate-500">
-              Build estimate assumes 5x velocity via Vibe Coding.
-            </p>
-          </CardContent>
-        </Card>
-
-        <div className="mt-10 bg-white p-6 md:p-8 shadow-sm border-t border-[#161b22]/10 relative z-10">
-          <div className="flex flex-col gap-4">
-            <div>
-              <div className="text-sm font-semibold text-df-ink mb-1">
-                Optional: save scenario &amp; generate report
-              </div>
-              <p className="text-xs text-slate-500 leading-relaxed max-w-xl">
-                Saves your inputs and produces a summary analysis. Add your email if you want a copy in your inbox.
+              <p className="df-meta text-[12px]">
+                Build estimate assumes 5× velocity via AI-assisted development.
               </p>
-              <div className="text-xs text-slate-500 mt-2">
-                Session ID:{" "}
-                <span className="font-mono text-df-iris font-medium">{sessionId ?? "—"}</span>
-              </div>
+            </div>
+          </section>
+
+          <div className="border-t border-df-ink" />
+
+          {/* Subscribe-style form — stacked, never side by side (spec §5) */}
+          <section className="flex flex-col gap-5 df-measure-body">
+            <div className="flex flex-col gap-2">
+              <h2 className="df-h2">Save scenario</h2>
+              <p className="df-body">
+                Saves your inputs and produces a summary analysis. Add your email if you want a copy
+                in your inbox.
+              </p>
+              <p className="df-meta text-[12px]">
+                Session ID: <span className="df-mono text-df-ink">{sessionId ?? "—"}</span>
+              </p>
             </div>
 
             {reportPath ? (
-              <div className="rounded-lg border border-df-mint/40 bg-df-mint/5 px-4 py-3 text-sm text-df-ink">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div className="flex items-start gap-2">
-                    <svg className="w-5 h-5 text-df-mint shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <div>
-                      <p className="font-semibold text-df-ink">Scenario saved</p>
-                      <p className="text-slate-600 text-xs mt-0.5">
-                        {emailQueued
-                          ? "A summary email is on its way to your inbox."
-                          : email.trim()
-                            ? "Your report was saved. We couldn't send email right now — open the report and use Share with a colleague."
-                            : "Open your report below."}
-                      </p>
-                    </div>
-                  </div>
-                  <Link
-                    href={reportPath}
-                    className="inline-flex justify-center bg-df-mint text-df-nav hover:brightness-110 transition shadow-md shadow-df-mint/15 text-sm font-bold px-5 py-2 rounded-full whitespace-nowrap"
-                  >
-                    View summary report
+              <div className="df-tool-card flex flex-col gap-3">
+                <p className="df-eyebrow text-df-ink">Scenario saved</p>
+                <p className="df-dek">
+                  {emailQueued
+                    ? "A summary email is on its way to your inbox."
+                    : email.trim()
+                      ? "Your report was saved. We couldn't send email right now — open the report and use Share with a colleague."
+                      : "Open your report below."}
+                </p>
+                <div className="flex flex-wrap items-center gap-5">
+                  <Link href={reportPath} className="df-btn">
+                    View summary report ↗
                   </Link>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReportPath(null);
-                    setSaveError(null);
-                    setEmailQueued(false);
-                  }}
-                  className="mt-2 text-xs font-medium text-df-iris hover:underline"
-                >
-                  Save another snapshot
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleSaveReport} className="flex flex-col gap-3">
-                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Email (optional)"
-                    autoComplete="email"
-                    className="bg-df-field border border-df-line rounded-full px-4 py-2.5 text-sm text-df-ink placeholder-slate-400 focus:outline-none focus:border-df-mint focus:ring-2 focus:ring-df-mint/20 w-full sm:max-w-xs"
-                  />
                   <button
-                    type="submit"
-                    disabled={saveLoading || !sessionId}
-                    className="bg-df-mint text-df-nav hover:brightness-110 transition shadow-lg shadow-df-mint/20 text-sm font-bold px-6 py-2.5 rounded-full whitespace-nowrap disabled:opacity-60 disabled:pointer-events-none"
+                    type="button"
+                    onClick={() => {
+                      setReportPath(null);
+                      setSaveError(null);
+                      setEmailQueued(false);
+                    }}
+                    className="df-link df-meta text-[12px]"
                   >
-                    {saveLoading ? "Saving…" : "Save & generate report"}
+                    Save another snapshot
                   </button>
                 </div>
-                {saveError && <p className="text-sm text-red-600">{saveError}</p>}
+              </div>
+            ) : (
+              <form onSubmit={handleSaveReport} className="flex flex-col gap-3 max-w-md">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email (optional)"
+                  autoComplete="email"
+                  className="df-field"
+                />
+                <button
+                  type="submit"
+                  disabled={saveLoading || !sessionId}
+                  className="df-btn df-btn-secondary w-full"
+                >
+                  {saveLoading ? "Saving…" : "Save & generate report"}
+                </button>
+                {saveError && (
+                  <p className="df-meta text-[12px] text-df-oxblood">{saveError}</p>
+                )}
               </form>
             )}
-          </div>
-        </div>
+          </section>
 
-        <section className="mt-16 relative z-10 max-w-3xl" aria-labelledby="faq-heading">
-          <h2 id="faq-heading" className="text-2xl md:text-3xl font-black tracking-tight text-df-ink mb-2">
-            Build vs. buy SaaS: common questions
-          </h2>
-          <p className="text-sm text-slate-600 mb-8">
-            Quick answers to the questions behind every build-or-buy software decision.
-          </p>
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-bold text-df-ink mb-1">Should I build or buy my SaaS?</h3>
-              <p className="text-sm text-slate-700 leading-relaxed">
-                It depends on the total cost of ownership over the software&rsquo;s lifespan, how
-                differentiating the capability is, how fast you need it, and your team&rsquo;s build
-                velocity. Commodity needs usually favor buying vendor SaaS; differentiating, long-lived
-                capabilities can favor building. The calculator above compares the TCO of both paths
-                over your expected app lifespan (1–5 years) so you decide with numbers rather than instinct.
-              </p>
+          <div className="border-t border-df-ink" />
+
+          {/* Article-row pattern (spec §5): hairline divider, H3 headline, dek at 700px */}
+          <section className="flex flex-col gap-3" aria-labelledby="faq-heading">
+            <h2 id="faq-heading" className="df-h2">
+              Common questions
+            </h2>
+            <p className="df-body df-measure-body mb-4">
+              Quick answers to the questions behind every build-or-buy software decision.
+            </p>
+            <div className="flex flex-col">
+              {[
+                {
+                  q: "Should I build or buy my SaaS?",
+                  a: "It depends on the total cost of ownership over the software’s lifespan, how differentiating the capability is, how fast you need it, and your team’s build velocity. Commodity needs usually favor buying vendor SaaS; differentiating, long-lived capabilities can favor building. The calculator above compares the TCO of both paths over your expected app lifespan (1–5 years) so you decide with numbers rather than instinct.",
+                },
+                {
+                  q: "Should I vibe code my SaaS instead of buying it?",
+                  a: "AI-assisted (“vibe”) coding can dramatically cut build time and cost, which shifts the build-vs-buy math toward building — especially for differentiated features. Model your AI model-stack costs and faster build velocity above, and the tool shows whether building still beats a vendor SaaS subscription over your chosen horizon.",
+                },
+                {
+                  q: "How do I calculate total cost of ownership for build vs. buy?",
+                  a: "Add up the full multi-year cost of each path. For buying: license, implementation, support, and annual price increases. For building: engineering and AI/model costs, time-to-live, ongoing maintenance, and support. This tool computes both over your chosen horizon (1–5 years) and recommends the cheaper, lower-risk option for your inputs.",
+                },
+                {
+                  q: "When does building software cost less than buying SaaS?",
+                  a: "Building tends to win when the app is highly differentiating, has a long lifespan, vendor SaaS pricing is high or rising fast, and your build velocity is strong (e.g. AI-assisted development). Buying tends to win for short-lived, commodity, or compliance-sensitive needs. Enter your numbers above to find the crossover point.",
+                },
+              ].map(({ q, a }) => (
+                <div
+                  key={q}
+                  className="flex flex-col gap-2 border-t border-df-hairline py-[30px] last:border-b"
+                >
+                  <h3 className="df-h3">{q}</h3>
+                  <p className="df-dek df-measure-body">{a}</p>
+                </div>
+              ))}
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-df-ink mb-1">Should I vibe code my SaaS instead of buying it?</h3>
-              <p className="text-sm text-slate-700 leading-relaxed">
-                AI-assisted (&ldquo;vibe&rdquo;) coding can dramatically cut build time and cost, which
-                shifts the build-vs-buy math toward building &mdash; especially for differentiated
-                features. Model your AI model-stack costs and faster build velocity above, and the tool
-                shows whether building still beats a vendor SaaS subscription over your chosen horizon.
-              </p>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-df-ink mb-1">How do I calculate total cost of ownership for build vs. buy?</h3>
-              <p className="text-sm text-slate-700 leading-relaxed">
-                Add up the full multi-year cost of each path. For buying: license, implementation,
-                support, and annual price increases. For building: engineering and AI/model costs,
-                time-to-live, ongoing maintenance, and support. This tool computes both over your
-                chosen horizon (1–5 years) and recommends the cheaper, lower-risk option for your inputs.
-              </p>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-df-ink mb-1">When does building software cost less than buying SaaS?</h3>
-              <p className="text-sm text-slate-700 leading-relaxed">
-                Building tends to win when the app is highly differentiating, has a long lifespan, vendor
-                SaaS pricing is high or rising fast, and your build velocity is strong (e.g. AI-assisted
-                development). Buying tends to win for short-lived, commodity, or compliance-sensitive
-                needs. Enter your numbers above to find the crossover point.
-              </p>
-            </div>
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
       <SiteFooter />
     </main>

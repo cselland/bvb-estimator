@@ -13,3 +13,7 @@ prisma/**/*.db-journal
 conversation.md
 *.log
 .upm
+
+# Build output / local agent tooling
+.open-next
+.claude

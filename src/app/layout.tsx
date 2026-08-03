@@ -1,19 +1,28 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import { Inter, Montserrat } from "next/font/google";
+import { Archivo, Spectral, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
+// Three families, no others (spec §2). Self-hosted by next/font, which also
+// gives us `display: swap` and removes the render-blocking Google Fonts request.
+const archivo = Archivo({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
-  variable: "--font-inter",
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-archivo",
   display: "swap",
 });
 
-const montserrat = Montserrat({
+const spectral = Spectral({
   subsets: ["latin"],
-  weight: ["700"],
-  variable: "--font-montserrat",
+  weight: ["300", "400", "600"],
+  variable: "--font-spectral",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-jetbrains-mono",
   display: "swap",
 });
 
@@ -46,6 +55,16 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
+  // Favicon set + manifest (spec §8)
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/apple-touch-icon.png",
+    other: [{ rel: "mask-icon", url: "/safari-pinned-tab.svg", color: "#8C2B49" }],
+  },
+  manifest: "/site.webmanifest",
   openGraph: {
     type: "website",
     url: SITE_URL,
@@ -79,6 +98,10 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#8C2B49",
 };
 
 // Structured data: helps Google understand the app and surface FAQ rich results
@@ -143,8 +166,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`antialiased bg-df-canvas ${inter.variable} ${montserrat.variable}`}>
-      <body className="font-sans text-df-ink bg-df-canvas selection:bg-df-mint/30">
+    <html
+      lang="en"
+      className={`antialiased bg-df-paper ${archivo.variable} ${spectral.variable} ${jetbrainsMono.variable}`}
+    >
+      <body className="font-body text-df-body bg-df-paper selection:bg-df-oxblood selection:text-df-paper">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA) }}
