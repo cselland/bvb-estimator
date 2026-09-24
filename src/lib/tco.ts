@@ -42,8 +42,8 @@ const OUTPUT_INTENSITY_MULTIPLIERS: Record<OutputIntensity, number> = {
 export type SecondaryModelToolName = ModelToolName | "none";
 
 export interface EstimatedTokenSpendResult {
-  primaryModel: ModelToolName;
-  secondaryModel: SecondaryModelToolName;
+  primaryModel: string;
+  secondaryModel: string;
   horizonYears: number;
   primaryModelWeight: number;
   outputIntensity: OutputIntensity;
@@ -61,8 +61,12 @@ export interface EstimatedTokenSpendResult {
 export function calculateEstimatedTokenSpend(args: {
   annualSaasCost: number;
   differentiationLevel: number;
-  primaryModel: ModelToolName;
-  secondaryModel: SecondaryModelToolName;
+  primaryModel: string;
+  secondaryModel: string;
+  /** From the current model catalog (live snapshot, last known good, or the table). */
+  primaryCoefficient: number;
+  /** null when no secondary model is selected. */
+  secondaryCoefficient: number | null;
   primaryModelWeight?: number; // 0–100, share of traffic going to primary model
   outputIntensity?: OutputIntensity;
   horizonYears?: number;
@@ -72,15 +76,16 @@ export function calculateEstimatedTokenSpend(args: {
     differentiationLevel,
     primaryModel,
     secondaryModel,
+    primaryCoefficient: primaryCoeff,
+    secondaryCoefficient,
     primaryModelWeight = 70,
     outputIntensity = "medium",
     horizonYears = 3,
   } = args;
-  const primaryCoeff = MODEL_COST_COEFFICIENTS[primaryModel];
   // When no secondary model is selected, treat all traffic as primary.
-  const blendedModelCoefficient = secondaryModel === "none"
+  const blendedModelCoefficient = secondaryCoefficient === null
     ? primaryCoeff
-    : primaryCoeff * (primaryModelWeight / 100) + MODEL_COST_COEFFICIENTS[secondaryModel] * (1 - primaryModelWeight / 100);
+    : primaryCoeff * (primaryModelWeight / 100) + secondaryCoefficient * (1 - primaryModelWeight / 100);
   const outputIntensityMultiplier = OUTPUT_INTENSITY_MULTIPLIERS[outputIntensity];
   const differentiationMultiplier = 0.55 + ((differentiationLevel - 1) / 4) * 1.1;
   const annualSaasProxySpend = annualSaasCost * 0.42;

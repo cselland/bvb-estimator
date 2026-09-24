@@ -4,6 +4,7 @@ import { insertScenario, isD1UnavailableError } from "@/lib/scenario-store";
 import {
   isScenarioInputs,
   isScenarioTimelineEntry,
+  parsePricingProvenance,
   type ScenarioPayloadV1,
   type ScenarioTimelineEntry,
 } from "@/lib/scenario-payload";
@@ -43,6 +44,9 @@ export async function POST(req: Request) {
       inputTimeline?: unknown;
       finalPrimaryTool?: unknown;
       finalSecondaryTool?: unknown;
+      finalPrimaryModelId?: unknown;
+      finalSecondaryModelId?: unknown;
+      pricing?: unknown;
     };
 
     const sessionId = typeof body.sessionId === "string" ? body.sessionId.trim() : "";
@@ -75,6 +79,11 @@ export async function POST(req: Request) {
     const finalSecondaryTool =
       typeof body.finalSecondaryTool === "string" ? body.finalSecondaryTool.trim() : undefined;
 
+    const modelId = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim().slice(0, 200) : undefined);
+    const finalPrimaryModelId = modelId(body.finalPrimaryModelId);
+    const finalSecondaryModelId = modelId(body.finalSecondaryModelId);
+    const pricing = parsePricingProvenance(body.pricing);
+
     const result = computeScenario(inputs);
     const summaryResult = await generateHarrySummaryMarkdown({
       sessionId,
@@ -100,6 +109,9 @@ export async function POST(req: Request) {
       appDescription: appDescription || undefined,
       summarySource: summaryResult.source,
       summaryError: summaryResult.error ? "AI summary temporarily unavailable" : undefined,
+      pricing,
+      finalPrimaryModelId,
+      finalSecondaryModelId,
     };
 
     const row = await insertScenario({

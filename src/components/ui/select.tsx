@@ -57,8 +57,12 @@ export function SelectContent({
 export function SelectItem({
   className,
   children,
+  hint,
   ...props
-}: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>) {
+}: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item> & {
+  /** Shown in the open list only, never in the trigger (it sits outside ItemText). */
+  hint?: React.ReactNode;
+}) {
   return (
     <SelectPrimitive.Item
       className={[
@@ -77,6 +81,37 @@ export function SelectItem({
         </SelectPrimitive.ItemIndicator>
       </span>
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      {hint ? <span className="ml-2 df-meta text-[12px]">{hint}</span> : null}
     </SelectPrimitive.Item>
+  );
+}
+
+export const SelectGroup = SelectPrimitive.Group;
+
+/** Non-selectable section heading inside a Select list. */
+export function SelectLabel({
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Label>) {
+  return (
+    <SelectPrimitive.Label
+      className={[
+        "px-3 pt-3 pb-1 df-eyebrow text-df-meta",
+        className ?? "",
+      ].join(" ")}
+      {...props}
+    />
+  );
+}
+
+export function SelectSeparator({
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Separator>) {
+  return (
+    <SelectPrimitive.Separator
+      className={["my-1 h-px bg-df-hairline", className ?? ""].join(" ")}
+      {...props}
+    />
   );
 }

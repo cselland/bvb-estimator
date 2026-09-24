@@ -33,6 +33,17 @@ binding = "ASSETS"
 binding = "WORKER_SELF_REFERENCE"
 service = "build-vs-buy-estimator"
 
+# Nightly model-price snapshot from the Overshoot Index (same Cloudflare
+# account). RPC to its PriceSnapshots entrypoint -- there is deliberately no
+# public HTTP endpoint for this data (OpenRouter's terms). `remote = true`
+# only affects `wrangler dev`: local runs read the production snapshot
+# (2 D1 rows per cache miss) instead of needing Overshoot running locally.
+[[services]]
+binding = "OVERSHOOT"
+service = "overshoot-index"
+entrypoint = "PriceSnapshots"
+remote = true
+
 [[d1_databases]]
 binding = "DB"
 database_name = "build-vs-buy-db"

@@ -270,3 +270,57 @@ export async function getScenarioById(id: string): Promise<ScenarioRecord | null
     createdAt: String(d.createdAt ?? new Date().toISOString()),
   };
 }
+
+// ---- Price snapshot, last known good ---------------------------------------
+// Copies of the Overshoot price snapshots this Worker has served, keyed by the
+// Overshoot snapshot_id. Two jobs: the fallback when the service binding fails
+// or returns something stale, and reproduction -- a saved scenario records the
+// snapshot_id it was priced with, and the exact payload is here.
+
+export type LastKnownGoodSnapshot = {
+  snapshotId: number;
+  generatedAt: string;
+  payloadJson: string;
+};
+
+async function ensurePriceSnapshotTable(db: D1DatabaseLike): Promise<void> {
+  await once("price_snapshot", async () => {
+    await db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS price_snapshot (
+          snapshot_id INTEGER PRIMARY KEY,
+          generated_at TEXT NOT NULL,
+          payload_json TEXT NOT NULL,
+          fetched_at TEXT NOT NULL
+        )`,
+      )
+      .run();
+  });
+}
+
+/** Store a snapshot once. Returns without writing if the id is already held. */
+export async function saveLastKnownGoodSnapshot(snapshotId: number, generatedAt: string, payloadJson: string): Promise<void> {
+  const d1 = await getD1();
+  if (!d1) return;
+  await ensurePriceSnapshotTable(d1);
+  await d1
+    .prepare(
+      `INSERT OR IGNORE INTO price_snapshot (snapshot_id, generated_at, payload_json, fetched_at)
+       VALUES (?, ?, ?, ?)`,
+    )
+    .bind(snapshotId, generatedAt, payloadJson, new Date().toISOString())
+    .run();
+}
+
+/** Newest held snapshot: one rowid seek. */
+export async function getLastKnownGoodSnapshot(): Promise<LastKnownGoodSnapshot | null> {
+  const d1 = await getD1();
+  if (!d1) return null;
+  await ensurePriceSnapshotTable(d1);
+  return d1
+    .prepare(
+      `SELECT snapshot_id AS snapshotId, generated_at AS generatedAt, payload_json AS payloadJson
+         FROM price_snapshot ORDER BY snapshot_id DESC LIMIT 1`,
+    )
+    .first<LastKnownGoodSnapshot>();
+}

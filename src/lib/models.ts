@@ -142,6 +142,16 @@ export const MODEL_DATA = {
 
 export type ModelName = keyof typeof MODEL_DATA;
 
+/**
+ * The coefficient formula above, as code, for prices that arrive at runtime
+ * (the Overshoot price snapshot). Unrounded: the table's 2-dp rounding would
+ * zero out the cheapest live models.
+ */
+export function coefficientFromPrices(inputPer1M: number, outputPer1M: number): number {
+  const blended = 0.75 * inputPer1M + 0.25 * outputPer1M;
+  return (blended / 10.0) * 1.2;
+}
+
 /** Blended $/1M tokens on the mixed-workload split used to derive coefficients. */
 export function blendedPricePer1M(model: ModelName): number | null {
   const { pricing } = MODEL_DATA[model];
