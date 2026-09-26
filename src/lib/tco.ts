@@ -23,21 +23,71 @@ export const MODEL_COST_COEFFICIENTS = Object.fromEntries(
 
 export type ModelToolName = ModelName;
 
-export type OutputIntensity = "low" | "medium" | "high";
+export type OutputIntensity = "low" | "medium" | "high" | "reasoning";
 
 export const OUTPUT_INTENSITY_LABELS: Record<OutputIntensity, string> = {
   low: "Retrieval-heavy",
   medium: "Mixed workload",
   high: "Generation-heavy",
+  reasoning: "Reasoning-heavy",
 };
 
-// Output tokens cost 3-5× more than input tokens. This multiplier reflects
-// the effective cost shift as generation ratio increases.
-const OUTPUT_INTENSITY_MULTIPLIERS: Record<OutputIntensity, number> = {
-  low: 0.75,
-  medium: 1.0,
-  high: 1.55,
+/**
+ * Share of tokens that are OUTPUT for each workload preset. A token-priced
+ * model is costed at its own input and output prices at this mix:
+ *
+ *   blended     = (1 − s) · inputPer1M + s · outputPer1M
+ *   coefficient = blended / 10.0 * 1.2        // same anchor as models.ts
+ *
+ * so a model with cheap output is no longer charged like one with expensive
+ * output. Mixed (25%) reproduces the previous calculation exactly.
+ */
+export const OUTPUT_SHARE: Record<OutputIntensity, number> = {
+  low: 0.10,
+  medium: 0.25,
+  high: 0.50,
+  reasoning: 0.70,
 };
+
+// Seat-priced tools have no input/output split, so they keep the previous flat
+// multiplier: exact at the three original presets, linear between them, and
+// clamped at the ends (Reasoning-heavy gets Generation-heavy's 1.55).
+const SEAT_MULTIPLIER_POINTS: [share: number, multiplier: number][] = [
+  [0.10, 0.75],
+  [0.25, 1.0],
+  [0.50, 1.55],
+];
+
+export function seatOutputMultiplier(share: number): number {
+  const pts = SEAT_MULTIPLIER_POINTS;
+  if (share <= pts[0]![0]) return pts[0]![1];
+  for (let i = 1; i < pts.length; i++) {
+    const [s1, m1] = pts[i]!;
+    if (share <= s1) {
+      const [s0, m0] = pts[i - 1]!;
+      return m0 + ((share - s0) / (s1 - s0)) * (m1 - m0);
+    }
+  }
+  return pts[pts.length - 1]![1];
+}
+
+/** What the calculator needs to cost one model; a catalog ModelOption fits. */
+export interface CostedModel {
+  kind: "tokens" | "seat";
+  inputPer1M: number | null;
+  outputPer1M: number | null;
+  /** Used for seat-priced tools only. */
+  coefficient: number;
+}
+
+/** Relative cost weight of one model at an output share (0–1). */
+export function effectiveCoefficient(model: CostedModel, outputShare: number): number {
+  if (model.kind === "tokens" && model.inputPer1M !== null && model.outputPer1M !== null) {
+    const blended = (1 - outputShare) * model.inputPer1M + outputShare * model.outputPer1M;
+    return (blended / 10.0) * 1.2;
+  }
+  return model.coefficient * seatOutputMultiplier(outputShare);
+}
 
 export type SecondaryModelToolName = ModelToolName | "none";
 
@@ -47,9 +97,11 @@ export interface EstimatedTokenSpendResult {
   horizonYears: number;
   primaryModelWeight: number;
   outputIntensity: OutputIntensity;
+  /** 0–1; the preset's share unless overridden. */
+  outputShare: number;
   annualSaasProxySpend: number;
+  /** Traffic-weighted effective coefficient, output mix included. */
   blendedModelCoefficient: number;
-  outputIntensityMultiplier: number;
   differentiationMultiplier: number;
   estimatedAnnualTokenSpend: number;
   estimatedThreeYearTokenTco: number;
@@ -64,11 +116,13 @@ export function calculateEstimatedTokenSpend(args: {
   primaryModel: string;
   secondaryModel: string;
   /** From the current model catalog (live snapshot, last known good, or the table). */
-  primaryCoefficient: number;
+  primaryPricing: CostedModel;
   /** null when no secondary model is selected. */
-  secondaryCoefficient: number | null;
+  secondaryPricing: CostedModel | null;
   primaryModelWeight?: number; // 0–100, share of traffic going to primary model
   outputIntensity?: OutputIntensity;
+  /** Advanced override, 0–1. Replaces the preset's output share when set. */
+  outputShareOverride?: number | null;
   horizonYears?: number;
 }): EstimatedTokenSpendResult {
   const {
@@ -76,21 +130,27 @@ export function calculateEstimatedTokenSpend(args: {
     differentiationLevel,
     primaryModel,
     secondaryModel,
-    primaryCoefficient: primaryCoeff,
-    secondaryCoefficient,
+    primaryPricing,
+    secondaryPricing,
     primaryModelWeight = 70,
     outputIntensity = "medium",
+    outputShareOverride = null,
     horizonYears = 3,
   } = args;
+  const outputShare =
+    outputShareOverride !== null && Number.isFinite(outputShareOverride)
+      ? Math.min(1, Math.max(0, outputShareOverride))
+      : OUTPUT_SHARE[outputIntensity];
+  const primaryCoeff = effectiveCoefficient(primaryPricing, outputShare);
   // When no secondary model is selected, treat all traffic as primary.
-  const blendedModelCoefficient = secondaryCoefficient === null
+  const blendedModelCoefficient = secondaryPricing === null
     ? primaryCoeff
-    : primaryCoeff * (primaryModelWeight / 100) + secondaryCoefficient * (1 - primaryModelWeight / 100);
-  const outputIntensityMultiplier = OUTPUT_INTENSITY_MULTIPLIERS[outputIntensity];
+    : primaryCoeff * (primaryModelWeight / 100) +
+      effectiveCoefficient(secondaryPricing, outputShare) * (1 - primaryModelWeight / 100);
   const differentiationMultiplier = 0.55 + ((differentiationLevel - 1) / 4) * 1.1;
   const annualSaasProxySpend = annualSaasCost * 0.42;
   const estimatedAnnualTokenSpend =
-    annualSaasProxySpend * blendedModelCoefficient * outputIntensityMultiplier * differentiationMultiplier;
+    annualSaasProxySpend * blendedModelCoefficient * differentiationMultiplier;
   // Token costs stay flat (models get cheaper year-over-year); SaaS costs compound at 8%/year.
   // This makes horizon years meaningful: longer projects favor MODEL_STACK more.
   const saasSeries = Array.from({ length: horizonYears }, (_, idx) => 1.08 ** idx);
@@ -106,9 +166,9 @@ export function calculateEstimatedTokenSpend(args: {
     horizonYears,
     primaryModelWeight,
     outputIntensity,
+    outputShare,
     annualSaasProxySpend,
     blendedModelCoefficient,
-    outputIntensityMultiplier,
     differentiationMultiplier,
     estimatedAnnualTokenSpend,
     estimatedThreeYearTokenTco,

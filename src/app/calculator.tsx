@@ -24,6 +24,7 @@ import { formatCurrency, formatMonths, formatSaasCost } from "@/lib/format";
 import type { ScenarioTimelineEntry } from "@/lib/scenario-payload";
 import {
   OUTPUT_INTENSITY_LABELS,
+  OUTPUT_SHARE,
   calculateEstimatedTokenSpend,
   computeScenario,
   type OutputIntensity,
@@ -124,6 +125,8 @@ export default function Calculator({ catalog }: { catalog: ModelCatalog }) {
   const priceLabel = pricingLabel(catalog.provenance);
   const [primaryModelWeight, setPrimaryModelWeight] = useState(70);
   const [outputIntensity, setOutputIntensity] = useState<OutputIntensity>("medium");
+  /** Advanced output-share override, in percent; null = use the preset. */
+  const [outputSharePct, setOutputSharePct] = useState<number | null>(null);
   const [saasImplementationCost, setSaasImplementationCost] = useState(25_000);
   const [buildEngineers, setBuildEngineers] = useState(2);
   const [buildTimeframeMonths, setBuildTimeframeMonths] = useState(6);
@@ -301,10 +304,11 @@ export default function Calculator({ catalog }: { catalog: ModelCatalog }) {
     differentiationLevel,
     primaryModel: primaryTool,
     secondaryModel: secondaryTool,
-    primaryCoefficient: primaryModel.coefficient,
-    secondaryCoefficient: secondaryModel?.coefficient ?? null,
+    primaryPricing: primaryModel,
+    secondaryPricing: secondaryModel,
     primaryModelWeight,
     outputIntensity,
+    outputShareOverride: outputSharePct === null ? null : outputSharePct / 100,
     horizonYears,
   });
 
@@ -605,7 +609,7 @@ export default function Calculator({ catalog }: { catalog: ModelCatalog }) {
                   </div>
                   <div className="flex flex-col gap-2">
                     <label className="df-eyebrow text-df-meta">Output intensity</label>
-                    <Select value={outputIntensity} onValueChange={(v) => { setOutputIntensity(v as OutputIntensity); logEvent("outputIntensity", v, 0); }}>
+                    <Select value={outputIntensity} onValueChange={(v) => { setOutputIntensity(v as OutputIntensity); setOutputSharePct(null); logEvent("outputIntensity", v, 0); }}>
                       <SelectTrigger aria-label="Output intensity">
                         <SelectValue />
                       </SelectTrigger>
@@ -616,8 +620,38 @@ export default function Calculator({ catalog }: { catalog: ModelCatalog }) {
                       </SelectContent>
                     </Select>
                     <p className="df-meta text-[11px] leading-relaxed">
-                      Output tokens cost 3–5× more than input. Generation-heavy workloads increase token spend significantly.
+                      Output tokens cost 3–5× more than input. Each model is priced at its own input and output rates for
+                      the workload&rsquo;s output share ({Math.round(OUTPUT_SHARE[outputIntensity] * 100)}% here).
                     </p>
+                    {outputSharePct === null ? (
+                      <button
+                        type="button"
+                        className="df-meta text-[11px] underline self-start"
+                        onClick={() => setOutputSharePct(Math.round(OUTPUT_SHARE[outputIntensity] * 100))}
+                      >
+                        Advanced: set output share
+                      </button>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={outputSharePct}
+                          onChange={(e) => { const v = Number(e.target.value); setOutputSharePct(v); logEvent("outputSharePct", v); }}
+                          className="w-full"
+                          aria-label="Output token share"
+                        />
+                        <div className="flex justify-between df-meta text-[11px]">
+                          <span>0%</span>
+                          <span className="df-mono text-[13px] text-df-ink">{outputSharePct}% output</span>
+                          <button type="button" className="underline" onClick={() => setOutputSharePct(null)}>
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -626,7 +660,7 @@ export default function Calculator({ catalog }: { catalog: ModelCatalog }) {
                   <div className="flex flex-col gap-1">
                     <span className="df-eyebrow text-df-ink">Model stack</span>
                     <span className="df-meta text-[11px]">
-                      coeff {tokenSpendEstimate.blendedModelCoefficient.toFixed(2)} · {tokenSpendEstimate.outputIntensityMultiplier.toFixed(2)}× output
+                      coeff {tokenSpendEstimate.blendedModelCoefficient.toFixed(2)} · {Math.round(tokenSpendEstimate.outputShare * 100)}% output
                     </span>
                   </div>
                   <div className="text-right flex flex-col gap-1">

@@ -7,9 +7,10 @@
  *   blended     = 0.75 * inputPer1M + 0.25 * outputPer1M   // mixed workload
  *   coefficient = blended / 10.0 * 1.2                     // Opus tier = 1.20 anchor
  *
- * The 0.75/0.25 split is the "Mixed workload" baseline. Retrieval-heavy vs
- * generation-heavy workloads are adjusted separately by
- * OUTPUT_INTENSITY_MULTIPLIERS in tco.ts — don't double-count them here.
+ * The 0.75/0.25 split is the "Mixed workload" baseline, and `coefficient` is
+ * the value at that mix. The calculator re-costs token-priced models from
+ * their input/output prices at the chosen workload's output share
+ * (OUTPUT_SHARE / effectiveCoefficient in tco.ts); at Mixed the two agree.
  *
  * Seat-priced tools have no $/MTok, so their coefficients stay hand-tuned.
  *

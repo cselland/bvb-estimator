@@ -225,8 +225,8 @@ export function hardcodedCatalog(): ModelCatalog {
       inputPer1M,
       outputPer1M,
       perSeatPerMonth: null,
-      // The table's own (rounded) coefficient, so fallback results match the
-      // pre-snapshot calculator exactly.
+      // The table's own (rounded) Mixed-workload coefficient, for the
+      // comparison page. The calculator re-costs from the prices above.
       coefficient: m.coefficient,
     };
   }
